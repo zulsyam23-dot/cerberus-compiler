@@ -1,0 +1,9 @@
+program codegen_core;
+
+function codegen_emit(ast: string): string;
+begin
+  return concat('bytecode:', ast);
+end;
+
+begin
+end.

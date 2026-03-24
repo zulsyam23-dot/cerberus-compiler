@@ -1,0 +1,559 @@
+program codegen_stmt;
+uses codegen_util, codegen_state, codegen_eval, codegen_expr;
+
+function cg_emit_stmt(state: map; stmt: string): map;
+var kind: string;
+body: string;
+parts: vector of string;
+name: string;
+expr: string;
+args: vector of string;
+cond: string;
+then_s: string;
+else_s: string;
+lbl_else: integer;
+lbl_end: integer;
+lbl_start: integer;
+idx: integer;
+i: integer;
+n: integer;
+eval_env: map;
+eval_val: map;
+eval_ok: boolean;
+eval_kind: string;
+eval_value: string;
+eval_int: integer;
+eval_bool: boolean;
+eval_right: map;
+eval_name: string;
+begin
+  kind := cg_kind(stmt);
+  if kind = 'SReturn' then
+  begin
+    body := cg_extract(stmt);
+    if body = '' then
+      bc_emit_ret()
+    else
+    begin
+      state := cg_emit_expr(state, body);
+      bc_emit_retval();
+    end;
+    return state;
+  end;
+  if kind = 'SEmpty' then
+    return state;
+  if kind = 'SBlock' then
+  begin
+    body := cg_extract(stmt);
+    return cg_emit_block(state, body);
+  end;
+  if kind = 'SAssign' then
+  begin
+    body := cg_extract(stmt);
+    parts := cg_split_top(body, ';');
+    name := vector_get(parts, 0);
+    expr := vector_get(parts, 1);
+    state := cg_emit_expr(state, expr);
+    state := cg_sym_get(state, name);
+    idx := cg_get_result(state);
+    bc_emit_store(idx);
+    return state;
+  end;
+  if kind = 'SCall' then
+  begin
+    body := cg_extract(stmt);
+    parts := cg_split_top(body, ';');
+    name := vector_get(parts, 0);
+    args := cg_extract_list(vector_get(parts, 1));
+    expr := '';
+    if name = 'writeln' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      bc_emit_println();
+      return state;
+    end;
+    if name = 'writefile' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      state := cg_emit_expr(state, vector_get(args, 1));
+      bc_emit_writefile();
+      return state;
+    end;
+    if name = 'builder_new' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      bc_new_op();
+      return state;
+    end;
+    if name = 'builder_main' then
+    begin
+      bc_main_op();
+      return state;
+    end;
+    if name = 'builder_write' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      bc_write_op();
+      return state;
+    end;
+    if name = 'builder_func_begin' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      state := cg_emit_expr(state, vector_get(args, 1));
+      bc_func_begin_op();
+      return state;
+    end;
+    if name = 'builder_func_end' then
+    begin
+      bc_func_end_op();
+      return state;
+    end;
+    if name = 'builder_emit_halt' then
+    begin
+      bc_emit_halt_op();
+      return state;
+    end;
+    if name = 'builder_label' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      bc_label_op();
+      return state;
+    end;
+    if name = 'builder_jump' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      bc_jump_op();
+      return state;
+    end;
+    if name = 'builder_jump_if_false' then
+    begin
+      state := cg_emit_expr(state, vector_get(args, 0));
+      bc_jump_if_false_op();
+      return state;
+    end;
+    if name = 'emit_bcop_new' then
+    begin
+      emit_bcop_new();
+      return state;
+    end;
+    if name = 'emit_bcop_main' then
+    begin
+      emit_bcop_main();
+      return state;
+    end;
+    if name = 'emit_bcop_write' then
+    begin
+      emit_bcop_write();
+      return state;
+    end;
+    if name = 'emit_bcop_func_begin' then
+    begin
+      emit_bcop_func_begin();
+      return state;
+    end;
+    if name = 'emit_bcop_func_end' then
+    begin
+      emit_bcop_func_end();
+      return state;
+    end;
+    if name = 'emit_bcop_halt' then
+    begin
+      emit_bcop_halt();
+      return state;
+    end;
+    if name = 'emit_bcop_label' then
+    begin
+      emit_bcop_label();
+      return state;
+    end;
+    if name = 'emit_bcop_jump' then
+    begin
+      emit_bcop_jump();
+      return state;
+    end;
+    if name = 'emit_bcop_jump_if_false' then
+    begin
+      emit_bcop_jump_if_false();
+      return state;
+    end;
+    if strlen(name) >= 3 and substr(name, 0, 3) = 'bc_' then
+    begin
+      eval_env := map_new();
+      if expr <> '' then
+        eval_env := map_set(eval_env, 'expr', concat('s:', expr));
+      if env_has('CERBERUS_DEBUG_PROGRESS') then
+        writeln(concat('PROGRESS: bc_call ', name));
+      if env_has('CERBERUS_DEBUG_LABELS') and name = 'bc_label' then
+      begin
+        writeln(concat('DEBUG: bc_label args=', cg_int_to_str(vector_len(args))));
+        if vector_len(args) = 0 then
+          writeln(concat('DEBUG: bc_label stmt=', body));
+      end;
+      if env_has('CERBERUS_DEBUG_AST') and name = 'bc_emit_const_int' then
+      begin
+        writeln(concat('DEBUG: bc_emit_const_int args=', cg_int_to_str(vector_len(args))));
+        if vector_len(args) > 0 then
+        begin
+          if strlen(vector_get(args, 0)) > 80 then
+            writeln(concat('DEBUG: bc_emit_const_int arg0=', substr(vector_get(args, 0), 0, 80)))
+          else
+            writeln(concat('DEBUG: bc_emit_const_int arg0=', vector_get(args, 0)));
+        end;
+      end;
+      eval_ok := false;
+      eval_kind := '';
+      eval_value := '';
+      if name = 'bc_emit_const_int' and env_has('CERBERUS_DEBUG_PROGRESS') then
+      begin
+        if vector_len(args) = 0 then
+          writeln('PROGRESS: bc_emit_const_int missing arg')
+        else
+        begin
+          if strlen(vector_get(args, 0)) > 200 then
+            writeln(concat('PROGRESS: bc_emit_const_int arg0=', substr(vector_get(args, 0), 0, 200)))
+          else
+            writeln(concat('PROGRESS: bc_emit_const_int arg0=', vector_get(args, 0)));
+        end;
+      end;
+      i := 0;
+      n := vector_len(args);
+      while i < n do
+      begin
+        state := cg_emit_expr(state, vector_get(args, i));
+        i := i + 1;
+      end;
+      if name = 'bc_emit_const_int' then bc_emit_const_int_op()
+      else if name = 'bc_emit_const_int_op' then bc_emit_const_int_op()
+      else if name = 'bc_emit_const_bool' then bc_emit_const_bool_op()
+      else if name = 'bc_emit_const_bool_op' then bc_emit_const_bool_op()
+      else if name = 'bc_emit_const_str' then bc_emit_const_str_op()
+      else if name = 'bc_emit_const_str_op' then bc_emit_const_str_op()
+      else if name = 'bc_emit_load' then bc_emit_load_op()
+      else if name = 'bc_emit_load_op' then bc_emit_load_op()
+      else if name = 'bc_emit_store' then bc_emit_store_op()
+      else if name = 'bc_emit_store_op' then bc_emit_store_op()
+      else if name = 'bc_emit_add' then bc_emit_add_op()
+      else if name = 'bc_emit_add_op' then bc_emit_add_op()
+      else if name = 'bc_emit_sub' then bc_emit_sub_op()
+      else if name = 'bc_emit_sub_op' then bc_emit_sub_op()
+      else if name = 'bc_emit_mul' then bc_emit_mul_op()
+      else if name = 'bc_emit_mul_op' then bc_emit_mul_op()
+      else if name = 'bc_emit_div' then bc_emit_div_op()
+      else if name = 'bc_emit_div_op' then bc_emit_div_op()
+      else if name = 'bc_emit_eq' then bc_emit_eq_op()
+      else if name = 'bc_emit_eq_op' then bc_emit_eq_op()
+      else if name = 'bc_emit_ne' then bc_emit_ne_op()
+      else if name = 'bc_emit_ne_op' then bc_emit_ne_op()
+      else if name = 'bc_emit_lt' then bc_emit_lt_op()
+      else if name = 'bc_emit_lt_op' then bc_emit_lt_op()
+      else if name = 'bc_emit_le' then bc_emit_le_op()
+      else if name = 'bc_emit_le_op' then bc_emit_le_op()
+      else if name = 'bc_emit_gt' then bc_emit_gt_op()
+      else if name = 'bc_emit_gt_op' then bc_emit_gt_op()
+      else if name = 'bc_emit_ge' then bc_emit_ge_op()
+      else if name = 'bc_emit_ge_op' then bc_emit_ge_op()
+      else if name = 'bc_emit_and' then bc_emit_and_op()
+      else if name = 'bc_emit_and_op' then bc_emit_and_op()
+      else if name = 'bc_emit_or' then bc_emit_or_op()
+      else if name = 'bc_emit_or_op' then bc_emit_or_op()
+      else if name = 'bc_emit_neg' then bc_emit_neg_op()
+      else if name = 'bc_emit_neg_op' then bc_emit_neg_op()
+      else if name = 'bc_emit_not' then bc_emit_not_op()
+      else if name = 'bc_emit_not_op' then bc_emit_not_op()
+      else if name = 'bc_emit_strlen' then bc_emit_strlen_op()
+      else if name = 'bc_emit_strlen_op' then bc_emit_strlen_op()
+      else if name = 'bc_emit_concat' then bc_emit_concat_op()
+      else if name = 'bc_emit_concat_op' then bc_emit_concat_op()
+      else if name = 'bc_emit_substr' then bc_emit_substr_op()
+      else if name = 'bc_emit_substr_op' then bc_emit_substr_op()
+      else if name = 'bc_emit_replace' then bc_emit_replace_op()
+      else if name = 'bc_emit_replace_op' then bc_emit_replace_op()
+      else if name = 'bc_emit_vec_new' then bc_emit_vec_new_op()
+      else if name = 'bc_emit_vec_new_op' then bc_emit_vec_new_op()
+      else if name = 'bc_emit_vec_len' then bc_emit_vec_len_op()
+      else if name = 'bc_emit_vec_len_op' then bc_emit_vec_len_op()
+      else if name = 'bc_emit_vec_get' then bc_emit_vec_get_op()
+      else if name = 'bc_emit_vec_get_op' then bc_emit_vec_get_op()
+      else if name = 'bc_emit_vec_set' then bc_emit_vec_set_op()
+      else if name = 'bc_emit_vec_set_op' then bc_emit_vec_set_op()
+      else if name = 'bc_emit_vec_push' then bc_emit_vec_push_op()
+      else if name = 'bc_emit_vec_push_op' then bc_emit_vec_push_op()
+      else if name = 'bc_emit_vec_remove' then bc_emit_vec_remove_op()
+      else if name = 'bc_emit_vec_remove_op' then bc_emit_vec_remove_op()
+      else if name = 'bc_emit_vec_last' then bc_emit_vec_last_op()
+      else if name = 'bc_emit_vec_last_op' then bc_emit_vec_last_op()
+      else if name = 'bc_emit_vec_pop' then bc_emit_vec_pop_op()
+      else if name = 'bc_emit_vec_pop_op' then bc_emit_vec_pop_op()
+      else if name = 'bc_emit_vec_clear' then bc_emit_vec_clear_op()
+      else if name = 'bc_emit_vec_clear_op' then bc_emit_vec_clear_op()
+      else if name = 'bc_emit_map_new' then bc_emit_map_new_op()
+      else if name = 'bc_emit_map_new_op' then bc_emit_map_new_op()
+      else if name = 'bc_emit_map_len' then bc_emit_map_len_op()
+      else if name = 'bc_emit_map_len_op' then bc_emit_map_len_op()
+      else if name = 'bc_emit_map_set' then bc_emit_map_set_op()
+      else if name = 'bc_emit_map_set_op' then bc_emit_map_set_op()
+      else if name = 'bc_emit_map_get' then bc_emit_map_get_op()
+      else if name = 'bc_emit_map_get_op' then bc_emit_map_get_op()
+      else if name = 'bc_emit_map_has' then bc_emit_map_has_op()
+      else if name = 'bc_emit_map_has_op' then bc_emit_map_has_op()
+      else if name = 'bc_emit_map_remove' then bc_emit_map_remove_op()
+      else if name = 'bc_emit_map_remove_op' then bc_emit_map_remove_op()
+      else if name = 'bc_emit_map_clear' then bc_emit_map_clear_op()
+      else if name = 'bc_emit_map_clear_op' then bc_emit_map_clear_op()
+      else if name = 'bc_emit_readfile' then bc_emit_readfile_op()
+      else if name = 'bc_emit_readfile_op' then bc_emit_readfile_op()
+      else if name = 'bc_emit_arg_count' then bc_emit_arg_count_op()
+      else if name = 'bc_emit_arg_count_op' then bc_emit_arg_count_op()
+      else if name = 'bc_emit_arg' then bc_emit_arg_op()
+      else if name = 'bc_emit_arg_op' then bc_emit_arg_op()
+      else if name = 'bc_emit_println' then bc_emit_println_op()
+      else if name = 'bc_emit_println_op' then bc_emit_println_op()
+      else if name = 'bc_emit_writefile' then bc_emit_writefile_op()
+      else if name = 'bc_emit_writefile_op' then bc_emit_writefile_op()
+      else if name = 'bc_emit_env_get' then bc_emit_env_get_op()
+      else if name = 'bc_emit_env_get_op' then bc_emit_env_get_op()
+      else if name = 'bc_emit_env_has' then bc_emit_env_has_op()
+      else if name = 'bc_emit_env_has_op' then bc_emit_env_has_op()
+      else if name = 'bc_emit_cwd' then bc_emit_cwd_op()
+      else if name = 'bc_emit_cwd_op' then bc_emit_cwd_op()
+      else if name = 'bc_emit_path_join' then bc_emit_path_join_op()
+      else if name = 'bc_emit_path_join_op' then bc_emit_path_join_op()
+      else if name = 'bc_emit_fs_exists' then bc_emit_fs_exists_op()
+      else if name = 'bc_emit_fs_exists_op' then bc_emit_fs_exists_op()
+      else if name = 'bc_emit_fs_listdir' then bc_emit_fs_listdir_op()
+      else if name = 'bc_emit_fs_listdir_op' then bc_emit_fs_listdir_op()
+      else if name = 'bc_emit_now_timestamp' then bc_emit_now_timestamp_op()
+      else if name = 'bc_emit_now_timestamp_op' then bc_emit_now_timestamp_op()
+      else if name = 'bc_emit_ret' then bc_emit_ret_op()
+      else if name = 'bc_emit_ret_op' then bc_emit_ret_op()
+      else if name = 'bc_emit_retval' then bc_emit_retval_op()
+      else if name = 'bc_emit_retval_op' then bc_emit_retval_op()
+      else if name = 'bc_emit_call' then bc_emit_call_op()
+      else if name = 'bc_emit_call_op' then bc_emit_call_op()
+      else if name = 'bc_jump' then
+      begin
+        if vector_len(args) = 0 then
+        begin
+          if env_has('CERBERUS_DEBUG_PROGRESS') then
+            writeln('PROGRESS: bc_jump missing arg');
+          return state;
+        end;
+        emit_bcop_jump();
+      end
+      else if name = 'bc_jump_if_false' then
+      begin
+        if vector_len(args) = 0 then
+        begin
+          if env_has('CERBERUS_DEBUG_PROGRESS') then
+            writeln('PROGRESS: bc_jump_if_false missing arg');
+          return state;
+        end;
+        emit_bcop_jump_if_false();
+      end
+      else if name = 'bc_label' then
+      begin
+        if vector_len(args) = 0 then
+        begin
+          if env_has('CERBERUS_DEBUG_PROGRESS') then
+            writeln('PROGRESS: bc_label missing arg');
+          return state;
+        end;
+        emit_bcop_label();
+      end
+      else if name = 'bc_func_begin' then emit_bcop_func_begin()
+      else if name = 'bc_func_begin_op' then emit_bcop_func_begin()
+      else if name = 'bc_func_end' then emit_bcop_func_end()
+      else if name = 'bc_func_end_op' then emit_bcop_func_end()
+      else if name = 'bc_main' then emit_bcop_main()
+      else if name = 'bc_main_op' then emit_bcop_main()
+      else if name = 'bc_new' then emit_bcop_new()
+      else if name = 'bc_new_op' then emit_bcop_new()
+      else if name = 'bc_emit_halt' then emit_bcop_halt()
+      else if name = 'bc_emit_halt_op' then emit_bcop_halt()
+      else if name = 'bc_write' then emit_bcop_write()
+      else if name = 'bc_write_op' then emit_bcop_write()
+      else if name = 'bc_label_op' then emit_bcop_label()
+      else if name = 'bc_jump_op' then emit_bcop_jump()
+      else if name = 'bc_jump_if_false_op' then emit_bcop_jump_if_false();
+      return state;
+    end;
+    i := 0;
+    n := vector_len(args);
+    while i < n do
+    begin
+      state := cg_emit_expr(state, vector_get(args, i));
+      i := i + 1;
+    end;
+    bc_emit_call(name);
+    return state;
+  end;
+  if kind = 'SIf' then
+  begin
+    body := cg_extract(stmt);
+    parts := cg_split_top(body, ';');
+    cond := vector_get(parts, 0);
+    then_s := vector_get(parts, 1);
+    else_s := vector_get(parts, 2);
+    state := cg_next_label(state);
+    lbl_else := cg_get_result(state);
+    state := cg_next_label(state);
+    lbl_end := cg_get_result(state);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt if labels else=', concat(cg_int_to_str(lbl_else), concat(' end=', cg_int_to_str(lbl_end)))));
+    state := cg_emit_expr(state, cond);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit jif ', cg_int_to_str(lbl_else)));
+    builder_jump_if_false(lbl_else);
+    state := cg_emit_stmt(state, then_s);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit jump ', cg_int_to_str(lbl_end)));
+    builder_jump(lbl_end);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit label ', cg_int_to_str(lbl_else)));
+    builder_label(lbl_else);
+    state := cg_emit_stmt(state, else_s);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit label ', cg_int_to_str(lbl_end)));
+    builder_label(lbl_end);
+    return state;
+  end;
+  if kind = 'SWhile' then
+  begin
+    body := cg_extract(stmt);
+    parts := cg_split_top(body, ';');
+    cond := vector_get(parts, 0);
+    expr := vector_get(parts, 1);
+    state := cg_next_label(state);
+    lbl_start := cg_get_result(state);
+    state := cg_next_label(state);
+    lbl_end := cg_get_result(state);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt while labels start=', concat(cg_int_to_str(lbl_start), concat(' end=', cg_int_to_str(lbl_end)))));
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit label ', cg_int_to_str(lbl_start)));
+    builder_label(lbl_start);
+    state := cg_emit_expr(state, cond);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit jif ', cg_int_to_str(lbl_end)));
+    builder_jump_if_false(lbl_end);
+    state := cg_emit_stmt(state, expr);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit jump ', cg_int_to_str(lbl_start)));
+    builder_jump(lbl_start);
+    if env_has('CERBERUS_DEBUG_LABELS') then
+      writeln(concat('DEBUG: cg_emit_stmt emit label ', cg_int_to_str(lbl_end)));
+    builder_label(lbl_end);
+    return state;
+  end;
+  return state;
+end;
+
+function cg_emit_decl(state: map; decl: string): map;
+var kind: string;
+body: string;
+parts: vector of string;
+name: string;
+begin
+  kind := cg_kind(decl);
+  if kind = 'DVar' then
+  begin
+    body := cg_extract(decl);
+    parts := cg_split_top(body, ';');
+    name := vector_get(parts, 0);
+    state := cg_sym_get(state, name);
+    return state;
+  end;
+  return state;
+end;
+
+function cg_emit_func_decl(state: map; decl: string): map;
+var kind: string;
+body: string;
+parts: vector of string;
+name: string;
+params_node: string;
+params: vector of string;
+param: string;
+param_parts: vector of string;
+param_name: string;
+block: string;
+fn_state: map;
+i: integer;
+n: integer;
+begin
+  kind := cg_kind(decl);
+  if kind <> 'DProc' and kind <> 'DFunc' then
+    return state;
+  body := cg_extract(decl);
+  parts := cg_split_top(body, ';');
+  name := vector_get(parts, 0);
+  params_node := vector_get(parts, 1);
+  if kind = 'DFunc' then
+    block := vector_get(parts, 3)
+  else
+    block := vector_get(parts, 2);
+  params := cg_extract_list(params_node);
+  builder_func_begin(name, vector_len(params));
+  fn_state := cg_state_new();
+  fn_state := cg_set_next_slot(fn_state, vector_len(params));
+  i := 0;
+  n := vector_len(params);
+  while i < n do
+  begin
+    param := vector_get(params, i);
+    param_parts := cg_split_top(cg_extract(param), ';');
+    param_name := vector_get(param_parts, 0);
+    fn_state := map_set(fn_state, param_name, cg_int_to_str(i));
+    i := i + 1;
+  end;
+  fn_state := cg_emit_block(fn_state, block);
+  bc_emit_ret();
+  builder_func_end();
+  return state;
+end;
+
+function cg_emit_func_decls(state: map; decls: vector of string): map;
+var i: integer;
+n: integer;
+begin
+  i := 0;
+  n := vector_len(decls);
+  while i < n do
+  begin
+    state := cg_emit_func_decl(state, vector_get(decls, i));
+    i := i + 1;
+  end;
+  return state;
+end;
+
+function cg_emit_block(state: map; block: string): map;
+var body: string;
+parts: vector of string;
+decls: vector of string;
+stmts: vector of string;
+i: integer;
+n: integer;
+begin
+  body := cg_extract(block);
+  parts := cg_split_top(body, ';');
+  decls := cg_extract_list(vector_get(parts, 0));
+  stmts := cg_extract_list(vector_get(parts, 1));
+  i := 0;
+  n := vector_len(decls);
+  while i < n do
+  begin
+    state := cg_emit_decl(state, vector_get(decls, i));
+    i := i + 1;
+  end;
+  i := 0;
+  n := vector_len(stmts);
+  while i < n do
+  begin
+    state := cg_emit_stmt(state, vector_get(stmts, i));
+    i := i + 1;
+  end;
+  return state;
+end;
+
+begin
+end.

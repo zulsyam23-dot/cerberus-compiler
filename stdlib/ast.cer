@@ -1,0 +1,165 @@
+program ast;
+
+function ast_version(): string;
+begin
+  return '0.3';
+end;
+
+function ast_available(): boolean;
+begin
+  return true;
+end;
+
+function ast_join(items: vector of string): string;
+var out: string;
+i: integer;
+n: integer;
+item: string;
+begin
+  out := '';
+  i := 0;
+  n := vector_len(items);
+  while i < n do
+  begin
+    item := vector_get(items, i);
+    if i = 0 then
+      out := item
+    else
+      out := concat(concat(out, ','), item);
+    i := i + 1;
+  end;
+  return out;
+end;
+
+function ast_uses(mods: vector of string): string;
+begin
+  return concat('U[', concat(ast_join(mods), ']'));
+end;
+
+function ast_program(name: string; uses_node: string; body: string): string;
+begin
+  return concat(concat('P{', name), concat(';', concat(uses_node, concat(';', concat(body, '}')))));
+end;
+
+function ast_decls(decls: vector of string): string;
+begin
+  return concat('D[', concat(ast_join(decls), ']'));
+end;
+
+function ast_stmts(stmts: vector of string): string;
+begin
+  return concat('S[', concat(ast_join(stmts), ']'));
+end;
+
+function ast_block(decls: vector of string; stmts: vector of string): string;
+begin
+  return concat('B{', concat(ast_decls(decls), concat(';', concat(ast_stmts(stmts), '}'))));
+end;
+
+function ast_param(name: string; ty: string): string;
+begin
+  return concat('Param{', concat(name, concat(';', concat(ty, '}'))));
+end;
+
+function ast_params(params: vector of string): string;
+begin
+  return concat('P[', concat(ast_join(params), ']'));
+end;
+
+function ast_var_decl(name: string; ty: string): string;
+begin
+  return concat('DVar{', concat(name, concat(';', concat(ty, '}'))));
+end;
+
+function ast_proc_decl(name: string; params: string; body: string): string;
+begin
+  return concat('DProc{', concat(name, concat(';', concat(params, concat(';', concat(body, '}'))))));
+end;
+
+function ast_func_decl(name: string; params: string; ret: string; body: string): string;
+begin
+  return concat('DFunc{', concat(name, concat(';', concat(params, concat(';', concat(ret, concat(';', concat(body, '}'))))))));
+end;
+
+function ast_args(args: vector of string): string;
+begin
+  return concat('A[', concat(ast_join(args), ']'));
+end;
+
+function ast_assign(name: string; expr: string): string;
+begin
+  return concat('SAssign{', concat(name, concat(';', concat(expr, '}'))));
+end;
+
+function ast_call(name: string; args: string): string;
+begin
+  return concat('SCall{', concat(name, concat(';', concat(args, '}'))));
+end;
+
+function ast_if(cond: string; then_body: string; else_body: string): string;
+begin
+  return concat('SIf{', concat(cond, concat(';', concat(then_body, concat(';', concat(else_body, '}'))))));
+end;
+
+function ast_while(cond: string; body: string): string;
+begin
+  return concat('SWhile{', concat(cond, concat(';', concat(body, '}'))));
+end;
+
+function ast_block_stmt(body: string): string;
+begin
+  return concat('SBlock{', concat(body, '}'));
+end;
+
+function ast_empty_stmt(): string;
+begin
+  return 'SEmpty';
+end;
+
+function ast_return(expr: string): string;
+begin
+  return concat('SReturn{', concat(expr, '}'));
+end;
+
+function ast_return_void(): string;
+begin
+  return 'SReturn{}';
+end;
+
+function ast_int(value: string): string;
+begin
+  return concat('EInt{', concat(value, '}'));
+end;
+
+function ast_bool(value: string): string;
+begin
+  return concat('EBool{', concat(value, '}'));
+end;
+
+function ast_str(value: string): string;
+begin
+  return concat('EStr{', concat(value, '}'));
+end;
+
+function ast_var(name: string): string;
+begin
+  return concat('EVar{', concat(name, '}'));
+end;
+
+function ast_unary(op: string; expr: string): string;
+begin
+  return concat('EUnary{', concat(op, concat(';', concat(expr, '}'))));
+end;
+
+function ast_bin(op: string; left: string; right: string): string;
+begin
+  return concat('EBin{', concat(op, concat(';', concat(left, concat(';', concat(right, '}'))))));
+end;
+
+function ast_call_expr(name: string; args: string): string;
+begin
+  return concat('ECall{', concat(name, concat(';', concat(args, '}'))));
+end;
+
+begin
+end.

@@ -1,0 +1,5 @@
+program typecheck_impl;
+uses typecheck_core, typecheck_util, typecheck_types, typecheck_expr, typecheck_stmt, typecheck_decl;
+
+begin
+end.

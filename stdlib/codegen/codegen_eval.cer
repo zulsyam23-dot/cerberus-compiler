@@ -1,0 +1,212 @@
+program codegen_eval;
+uses codegen_util;
+
+function cg_eval_make(kind: string; value: string): map;
+var m: map;
+begin
+  m := map_new();
+  m := map_set(m, '@ok', 'true');
+  m := map_set(m, '@kind', kind);
+  m := map_set(m, '@value', value);
+  return m;
+end;
+
+function cg_eval_fail(): map;
+var m: map;
+begin
+  m := map_new();
+  m := map_set(m, '@ok', 'false');
+  m := map_set(m, '@kind', '');
+  m := map_set(m, '@value', '');
+  return m;
+end;
+
+function cg_eval_ok(v: map): boolean;
+begin
+  return map_has(v, '@ok') and map_get(v, '@ok') = 'true';
+end;
+
+function cg_eval_kind(v: map): string;
+begin
+  if map_has(v, '@kind') then
+    return map_get(v, '@kind');
+  return '';
+end;
+
+function cg_eval_value(v: map): string;
+begin
+  if map_has(v, '@value') then
+    return map_get(v, '@value');
+  return '';
+end;
+
+function cg_eval_env_get(env: map; name: string): map;
+var tagged: string;
+begin
+  if not map_has(env, name) then
+    return cg_eval_fail();
+  tagged := map_get(env, name);
+  if strlen(tagged) < 3 then
+    return cg_eval_fail();
+  if substr(tagged, 0, 2) = 'i:' then
+    return cg_eval_make('int', substr(tagged, 2, strlen(tagged) - 2));
+  if substr(tagged, 0, 2) = 'b:' then
+    return cg_eval_make('bool', substr(tagged, 2, strlen(tagged) - 2));
+  if substr(tagged, 0, 2) = 's:' then
+    return cg_eval_make('str', substr(tagged, 2, strlen(tagged) - 2));
+  return cg_eval_fail();
+end;
+
+function cg_eval_expr(expr: string; env: map): map;
+var kind: string;
+body: string;
+parts: vector of string;
+op: string;
+left: string;
+right: string;
+name: string;
+args: vector of string;
+i: integer;
+n: integer;
+vleft: map;
+vright: map;
+v: map;
+s0: string;
+s1: string;
+s2: string;
+begin
+  kind := cg_kind(expr);
+  if kind = 'EInt' then
+    return cg_eval_make('int', cg_extract(expr));
+  if kind = 'EBool' then
+    return cg_eval_make('bool', cg_extract(expr));
+  if kind = 'EStr' then
+    return cg_eval_make('str', cg_strip_quotes(cg_extract(expr)));
+  if kind = 'EVar' then
+    return cg_eval_env_get(env, cg_extract(expr));
+  if kind = 'EUnary' then
+  begin
+    body := cg_extract(expr);
+    parts := cg_split_top(body, ';');
+    op := vector_get(parts, 0);
+    left := vector_get(parts, 1);
+    vleft := cg_eval_expr(left, env);
+    if not cg_eval_ok(vleft) then
+      return cg_eval_fail();
+    if op = '-' and cg_eval_kind(vleft) = 'int' then
+      return cg_eval_make('int', cg_int_to_str(0 - cg_parse_int(cg_eval_value(vleft))));
+    if op = 'not' and cg_eval_kind(vleft) = 'bool' then
+    begin
+      if cg_eval_value(vleft) = 'true' then
+        return cg_eval_make('bool', 'false')
+      else
+        return cg_eval_make('bool', 'true');
+    end;
+    return cg_eval_fail();
+  end;
+  if kind = 'EBin' then
+  begin
+    body := cg_extract(expr);
+    parts := cg_split_top(body, ';');
+    op := vector_get(parts, 0);
+    left := vector_get(parts, 1);
+    right := vector_get(parts, 2);
+    vleft := cg_eval_expr(left, env);
+    vright := cg_eval_expr(right, env);
+    if not cg_eval_ok(vleft) or not cg_eval_ok(vright) then
+      return cg_eval_fail();
+    if op = '+' and cg_eval_kind(vleft) = 'int' and cg_eval_kind(vright) = 'int' then
+      return cg_eval_make('int', cg_int_to_str(cg_parse_int(cg_eval_value(vleft)) + cg_parse_int(cg_eval_value(vright))));
+    if op = '-' and cg_eval_kind(vleft) = 'int' and cg_eval_kind(vright) = 'int' then
+      return cg_eval_make('int', cg_int_to_str(cg_parse_int(cg_eval_value(vleft)) - cg_parse_int(cg_eval_value(vright))));
+    if op = '*' and cg_eval_kind(vleft) = 'int' and cg_eval_kind(vright) = 'int' then
+      return cg_eval_make('int', cg_int_to_str(cg_parse_int(cg_eval_value(vleft)) * cg_parse_int(cg_eval_value(vright))));
+    if op = '/' and cg_eval_kind(vleft) = 'int' and cg_eval_kind(vright) = 'int' then
+      return cg_eval_make('int', cg_int_to_str(cg_parse_int(cg_eval_value(vleft)) / cg_parse_int(cg_eval_value(vright))));
+    if op = '=' and cg_eval_kind(vleft) = cg_eval_kind(vright) then
+    begin
+      if cg_eval_value(vleft) = cg_eval_value(vright) then
+        return cg_eval_make('bool', 'true')
+      else
+        return cg_eval_make('bool', 'false');
+    end;
+    return cg_eval_fail();
+  end;
+  if kind = 'ECall' then
+  begin
+    body := cg_extract(expr);
+    parts := cg_split_top(body, ';');
+    name := vector_get(parts, 0);
+    args := cg_extract_list(vector_get(parts, 1));
+    n := vector_len(args);
+    if name = 'cg_parse_int' and n = 1 then
+    begin
+      v := cg_eval_expr(vector_get(args, 0), env);
+      if cg_eval_ok(v) and cg_eval_kind(v) = 'str' then
+        return cg_eval_make('int', cg_int_to_str(cg_parse_int(cg_eval_value(v))));
+    end;
+    if name = 'cg_int_to_str' and n = 1 then
+    begin
+      v := cg_eval_expr(vector_get(args, 0), env);
+      if cg_eval_ok(v) and cg_eval_kind(v) = 'int' then
+        return cg_eval_make('str', cg_int_to_str(cg_parse_int(cg_eval_value(v))));
+    end;
+    if name = 'cg_extract' and n = 1 then
+    begin
+      v := cg_eval_expr(vector_get(args, 0), env);
+      if cg_eval_ok(v) and cg_eval_kind(v) = 'str' then
+        return cg_eval_make('str', cg_extract(cg_eval_value(v)));
+    end;
+    if name = 'cg_strip_quotes' and n = 1 then
+    begin
+      v := cg_eval_expr(vector_get(args, 0), env);
+      if cg_eval_ok(v) and cg_eval_kind(v) = 'str' then
+        return cg_eval_make('str', cg_strip_quotes(cg_eval_value(v)));
+    end;
+    if name = 'cg_trim' and n = 1 then
+    begin
+      v := cg_eval_expr(vector_get(args, 0), env);
+      if cg_eval_ok(v) and cg_eval_kind(v) = 'str' then
+        return cg_eval_make('str', cg_trim(cg_eval_value(v)));
+    end;
+    if name = 'strlen' and n = 1 then
+    begin
+      v := cg_eval_expr(vector_get(args, 0), env);
+      if cg_eval_ok(v) and cg_eval_kind(v) = 'str' then
+        return cg_eval_make('int', cg_int_to_str(strlen(cg_eval_value(v))));
+    end;
+    if name = 'concat' and n = 2 then
+    begin
+      vleft := cg_eval_expr(vector_get(args, 0), env);
+      vright := cg_eval_expr(vector_get(args, 1), env);
+      if cg_eval_ok(vleft) and cg_eval_ok(vright) and cg_eval_kind(vleft) = 'str' and cg_eval_kind(vright) = 'str' then
+        return cg_eval_make('str', concat(cg_eval_value(vleft), cg_eval_value(vright)));
+    end;
+    if name = 'substr' and n = 3 then
+    begin
+      vleft := cg_eval_expr(vector_get(args, 0), env);
+      vright := cg_eval_expr(vector_get(args, 1), env);
+      v := cg_eval_expr(vector_get(args, 2), env);
+      if cg_eval_ok(vleft) and cg_eval_ok(vright) and cg_eval_ok(v) and cg_eval_kind(vleft) = 'str' and cg_eval_kind(vright) = 'int' and cg_eval_kind(v) = 'int' then
+        return cg_eval_make('str', substr(cg_eval_value(vleft), cg_parse_int(cg_eval_value(vright)), cg_parse_int(cg_eval_value(v))));
+    end;
+    if name = 'replace' and n = 3 then
+    begin
+      vleft := cg_eval_expr(vector_get(args, 0), env);
+      vright := cg_eval_expr(vector_get(args, 1), env);
+      v := cg_eval_expr(vector_get(args, 2), env);
+      if cg_eval_ok(vleft) and cg_eval_ok(vright) and cg_eval_ok(v) and cg_eval_kind(vleft) = 'str' and cg_eval_kind(vright) = 'str' and cg_eval_kind(v) = 'str' then
+      begin
+        s0 := cg_eval_value(vleft);
+        s1 := cg_eval_value(vright);
+        s2 := cg_eval_value(v);
+        return cg_eval_make('str', replace(s0, s1, s2));
+      end;
+    end;
+    return cg_eval_fail();
+  end;
+  return cg_eval_fail();
+end;
+
+begin
+end.

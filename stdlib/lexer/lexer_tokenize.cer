@@ -1,0 +1,208 @@
+program lexer_tokenize;
+uses lexer_core;
+
+function lex_int_to_str(v: integer): string;
+var digits: string;
+out: string;
+d: integer;
+q: integer;
+begin
+  if v = 0 then
+    return '0';
+  digits := '0123456789';
+  out := '';
+  while v > 0 do
+  begin
+    q := v / 10;
+    d := v - (q * 10);
+    out := concat(substr(digits, d, 1), out);
+    v := q;
+  end;
+  return out;
+end;
+
+function lex_tokenize(src: string): vector of string;
+var tokens: vector of string;
+i: integer;
+n: integer;
+ch: string;
+cur: string;
+next: string;
+closed: boolean;
+done: boolean;
+start_i: integer;
+begin
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: lex_tokenize enter');
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: lex_tokenize start');
+  tokens := vector_new_str();
+  i := 0;
+  n := strlen(src);
+  while i < n do
+  begin
+    ch := substr(src, i, 1);
+
+    if lex_is_space(ch) then
+    begin
+      i := i + 1;
+    end
+    else if ch = '{' then
+    begin
+      start_i := i;
+      i := i + 1;
+      closed := false;
+      while i < n and not closed do
+      begin
+        ch := substr(src, i, 1);
+        if ch = '}' then
+        begin
+          closed := true;
+          i := i + 1;
+        end;
+        if not closed then
+          i := i + 1;
+      end;
+      if not closed then
+        tokens := vector_push(tokens, concat('ERROR: unterminated comment at index ', lex_int_to_str(start_i)));
+    end
+    else if ch = '/' then
+    begin
+      if i + 1 < n and substr(src, i + 1, 1) = '/' then
+      begin
+        i := i + 2;
+        done := false;
+        while i < n and not done do
+        begin
+          ch := substr(src, i, 1);
+          if ch = '\n' then
+          begin
+            i := i + 1;
+            done := true;
+          end;
+          if not done then
+            i := i + 1;
+        end;
+      end
+      else
+      begin
+        tokens := vector_push(tokens, '/');
+        i := i + 1;
+      end;
+    end
+    else if ch = '''' then
+    begin
+      start_i := i;
+      cur := '''';
+      i := i + 1;
+      closed := false;
+      while i < n and not closed do
+      begin
+        ch := substr(src, i, 1);
+        if ch = '''' then
+        begin
+          if i + 1 < n and substr(src, i + 1, 1) = '''' then
+          begin
+            cur := concat(cur, '''');
+            i := i + 2;
+          end
+          else
+          begin
+            cur := concat(cur, '''');
+            i := i + 1;
+            closed := true;
+          end;
+        end
+        else
+        begin
+          cur := concat(cur, ch);
+          i := i + 1;
+        end;
+      end;
+      if closed then
+        tokens := vector_push(tokens, cur)
+      else
+        tokens := vector_push(tokens, concat('ERROR: unterminated string at index ', lex_int_to_str(start_i)));
+    end
+    else if lex_is_digit(ch) then
+    begin
+      cur := '';
+      while i < n and lex_is_digit(substr(src, i, 1)) do
+      begin
+        cur := concat(cur, substr(src, i, 1));
+        i := i + 1;
+      end;
+      tokens := vector_push(tokens, cur);
+    end
+    else if lex_is_alpha(ch) then
+    begin
+      cur := '';
+      while i < n and lex_is_alnum(substr(src, i, 1)) do
+      begin
+        cur := concat(cur, substr(src, i, 1));
+        i := i + 1;
+      end;
+      tokens := vector_push(tokens, cur);
+    end
+    else if lex_is_symbol(ch) then
+    begin
+      if ch = ':' then
+      begin
+        if i + 1 < n and substr(src, i + 1, 1) = '=' then
+        begin
+          tokens := vector_push(tokens, ':=');
+          i := i + 2;
+        end
+        else
+        begin
+          tokens := vector_push(tokens, ':');
+          i := i + 1;
+        end;
+      end
+      else if ch = '<' then
+      begin
+        if i + 1 < n and substr(src, i + 1, 1) = '=' then
+        begin
+          tokens := vector_push(tokens, '<=');
+          i := i + 2;
+        end
+        else if i + 1 < n and substr(src, i + 1, 1) = '>' then
+        begin
+          tokens := vector_push(tokens, '<>');
+          i := i + 2;
+        end
+        else
+        begin
+          tokens := vector_push(tokens, '<');
+          i := i + 1;
+        end;
+      end
+      else if ch = '>' then
+      begin
+        if i + 1 < n and substr(src, i + 1, 1) = '=' then
+        begin
+          tokens := vector_push(tokens, '>=');
+          i := i + 2;
+        end
+        else
+        begin
+          tokens := vector_push(tokens, '>');
+          i := i + 1;
+        end;
+      end
+      else
+      begin
+        tokens := vector_push(tokens, ch);
+        i := i + 1;
+      end;
+    end
+    else
+    begin
+      i := i + 1;
+    end;
+  end;
+  return tokens;
+end;
+
+begin
+end.

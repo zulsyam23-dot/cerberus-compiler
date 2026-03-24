@@ -1,0 +1,220 @@
+program typecheck_decl;
+uses typecheck_core, typecheck_util, typecheck_types, typecheck_stmt;
+
+function tc_decl_header(state: map; decl: string): map;
+var kind: string;
+body: string;
+parts: vector of string;
+name: string;
+ty: string;
+params_node: string;
+param_nodes: vector of string;
+param: string;
+param_parts: vector of string;
+param_name: string;
+param_ty: string;
+param_types: vector of string;
+block: string;
+ret: string;
+inner: map;
+i: integer;
+n: integer;
+begin
+  kind := tc_kind(decl);
+  if kind = 'DVar' then
+  begin
+    body := tc_extract(decl);
+    parts := tc_split_top(body, ';');
+    name := vector_get(parts, 0);
+    ty := tc_norm_type(vector_get(parts, 1));
+    if map_has(state, name) then
+      return state;
+    return map_set(state, name, ty);
+  end;
+  if kind = 'DProc' or kind = 'DFunc' then
+  begin
+    body := tc_extract(decl);
+    parts := tc_split_top(body, ';');
+    name := vector_get(parts, 0);
+    params_node := vector_get(parts, 1);
+    if kind = 'DFunc' then
+    begin
+      ret := tc_norm_type(vector_get(parts, 2));
+      block := vector_get(parts, 3);
+    end
+    else
+    begin
+      ret := 'void';
+      block := vector_get(parts, 2);
+    end;
+    param_nodes := tc_extract_list(params_node);
+    param_types := vector_new_str();
+    i := 0;
+    n := vector_len(param_nodes);
+    while i < n do
+    begin
+      param := vector_get(param_nodes, i);
+      param_parts := tc_split_top(tc_extract(param), ';');
+      param_name := vector_get(param_parts, 0);
+      param_ty := tc_norm_type(vector_get(param_parts, 1));
+      param_types := vector_push(param_types, param_ty);
+      i := i + 1;
+    end;
+    return tc_set_fn(state, name, ret, param_types);
+  end;
+  return state;
+end;
+
+function tc_decl_body(state: map; decl: string): map;
+var kind: string;
+body: string;
+parts: vector of string;
+name: string;
+params_node: string;
+param_nodes: vector of string;
+param: string;
+param_parts: vector of string;
+param_name: string;
+param_ty: string;
+block: string;
+ret: string;
+inner: map;
+i: integer;
+n: integer;
+begin
+  kind := tc_kind(decl);
+  if kind <> 'DProc' and kind <> 'DFunc' then
+    return state;
+  body := tc_extract(decl);
+  parts := tc_split_top(body, ';');
+  name := vector_get(parts, 0);
+  params_node := vector_get(parts, 1);
+  if kind = 'DFunc' then
+  begin
+    ret := tc_norm_type(vector_get(parts, 2));
+    block := vector_get(parts, 3);
+  end
+  else
+  begin
+    ret := 'void';
+    block := vector_get(parts, 2);
+  end;
+  param_nodes := tc_extract_list(params_node);
+  inner := state;
+  inner := tc_set_error(inner, '');
+  inner := tc_set_result(inner, '');
+  inner := tc_set_ret(inner, ret);
+  i := 0;
+  n := vector_len(param_nodes);
+  while i < n do
+  begin
+    param := vector_get(param_nodes, i);
+    param_parts := tc_split_top(tc_extract(param), ';');
+    param_name := vector_get(param_parts, 0);
+    param_ty := tc_norm_type(vector_get(param_parts, 1));
+    inner := map_set(inner, param_name, param_ty);
+    i := i + 1;
+  end;
+  inner := tc_block(inner, block);
+  if tc_has_error(inner) then
+    return tc_set_error(state, tc_get_error(inner));
+  return state;
+end;
+
+function tc_block(state: map; block: string): map;
+var body: string;
+parts: vector of string;
+decls: vector of string;
+stmts: vector of string;
+i: integer;
+n: integer;
+begin
+  body := tc_extract(block);
+  parts := tc_split_top(body, ';');
+  decls := tc_extract_list(vector_get(parts, 0));
+  stmts := tc_extract_list(vector_get(parts, 1));
+  i := 0;
+  n := vector_len(decls);
+  while i < n do
+  begin
+    if tc_has_error(state) then
+      return state;
+    state := tc_decl_header(state, vector_get(decls, i));
+    i := i + 1;
+  end;
+  i := 0;
+  n := vector_len(decls);
+  while i < n do
+  begin
+    if tc_has_error(state) then
+      return state;
+    state := tc_decl_body(state, vector_get(decls, i));
+    i := i + 1;
+  end;
+  i := 0;
+  n := vector_len(stmts);
+  while i < n do
+  begin
+    if tc_has_error(state) then
+      return state;
+    state := tc_stmt(state, vector_get(stmts, i));
+    i := i + 1;
+  end;
+  return state;
+end;
+
+function typecheck_ok(ast: string): boolean;
+var kind: string;
+body: string;
+parts: vector of string;
+block: string;
+state: map;
+begin
+  if strlen(ast) = 0 then
+    return false;
+  if substr(ast, 0, 6) = 'ERROR:' then
+    return false;
+  kind := tc_kind(ast);
+  if kind <> 'P' then
+    return false;
+  body := tc_extract(ast);
+  parts := tc_split_top(body, ';');
+  if vector_len(parts) < 3 then
+    return false;
+  block := vector_get(parts, 2);
+  state := tc_state_new();
+  state := tc_set_ret(state, 'void');
+  state := tc_block(state, block);
+  return not tc_has_error(state);
+end;
+
+function typecheck_error_impl(ast: string): string;
+var kind: string;
+body: string;
+parts: vector of string;
+block: string;
+state: map;
+begin
+  if strlen(ast) = 0 then
+    return 'empty ast';
+  if substr(ast, 0, 6) = 'ERROR:' then
+    return ast;
+  kind := tc_kind(ast);
+  if kind <> 'P' then
+    return 'invalid ast';
+  body := tc_extract(ast);
+  parts := tc_split_top(body, ';');
+  if vector_len(parts) < 3 then
+    return 'invalid ast';
+  block := vector_get(parts, 2);
+  state := tc_state_new();
+  state := tc_set_ret(state, 'void');
+  state := tc_block(state, block);
+  if tc_has_error(state) then
+    return tc_get_error(state);
+  return '';
+end;
+
+begin
+end.
+

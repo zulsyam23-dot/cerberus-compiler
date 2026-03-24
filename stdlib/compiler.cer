@@ -1,0 +1,524 @@
+program compiler;
+uses lexer, parser, typecheck, codegen, ast;
+
+var src_path, out_path, src, ast, err: string;
+no_tc: boolean;
+
+function starts_with(s: string; prefix: string): boolean;
+begin
+  if strlen(s) < strlen(prefix) then
+    return false;
+  return substr(s, 0, strlen(prefix)) = prefix;
+end;
+
+function c_extract(node: string): string;
+var n: integer;
+ i: integer;
+ start: integer;
+ end_idx: integer;
+ ch: string;
+begin
+  n := strlen(node);
+  if n < 3 then
+    return '';
+  i := 0;
+  start := -1;
+  end_idx := -1;
+  while i < n do
+  begin
+    ch := substr(node, i, 1);
+    if start < 0 and ch = '{' then
+      start := i;
+    if ch = '}' then
+      end_idx := i;
+    i := i + 1;
+  end;
+  if start < 0 or end_idx <= start then
+    return '';
+  return substr(node, start + 1, end_idx - start - 1);
+end;
+
+function c_split_top(s: string; sep: string): vector of string;
+var out: vector of string;
+cur: string;
+n: integer;
+i: integer;
+ch: string;
+depth: integer;
+in_str: boolean;
+next: string;
+begin
+  out := vector_new_str();
+  if s = '' then
+    return out;
+  cur := '';
+  n := strlen(s);
+  i := 0;
+  depth := 0;
+  in_str := false;
+  while i < n do
+  begin
+    ch := substr(s, i, 1);
+    if in_str then
+    begin
+      if ch = '''' then
+      begin
+        if i + 1 < n and substr(s, i + 1, 1) = '''' then
+        begin
+          cur := concat(cur, '''');
+          cur := concat(cur, '''');
+          if i + 2 >= n then
+            in_str := false
+          else
+          begin
+            next := substr(s, i + 2, 1);
+            if next = '}' or next = ']' or next = ',' or next = ';' or next = ')' then
+              in_str := false;
+          end;
+          i := i + 2;
+        end
+        else
+        begin
+          in_str := false;
+          cur := concat(cur, ch);
+          i := i + 1;
+        end;
+      end
+      else
+      begin
+        cur := concat(cur, ch);
+        i := i + 1;
+      end;
+    end
+    else if ch = '''' then
+    begin
+      in_str := true;
+      cur := concat(cur, ch);
+      i := i + 1;
+    end
+    else if ch = '{' then
+    begin
+      depth := depth + 1;
+      cur := concat(cur, ch);
+      i := i + 1;
+    end
+    else if ch = '}' then
+    begin
+      depth := depth - 1;
+      cur := concat(cur, ch);
+      i := i + 1;
+    end
+    else if depth = 0 and ch = sep then
+    begin
+      out := vector_push(out, cur);
+      cur := '';
+      i := i + 1;
+    end
+    else
+    begin
+      cur := concat(cur, ch);
+      i := i + 1;
+    end;
+  end;
+  out := vector_push(out, cur);
+  return out;
+end;
+
+function c_extract_list(node: string): vector of string;
+var n: integer;
+body: string;
+begin
+  n := strlen(node);
+  if n < 3 then
+    return vector_new_str();
+  body := substr(node, 2, n - 3);
+  return c_split_top(body, ',');
+end;
+
+function c_vec_concat(a: vector of string; b: vector of string): vector of string;
+var out: vector of string;
+i: integer;
+n: integer;
+begin
+  out := vector_new_str();
+  i := 0;
+  n := vector_len(a);
+  while i < n do
+  begin
+    out := vector_push(out, vector_get(a, i));
+    i := i + 1;
+  end;
+  i := 0;
+  n := vector_len(b);
+  while i < n do
+  begin
+    out := vector_push(out, vector_get(b, i));
+    i := i + 1;
+  end;
+  return out;
+end;
+
+function c_contains(hay: string; needle: string): boolean;
+var i: integer;
+ n: integer;
+ m: integer;
+begin
+  n := strlen(hay);
+  m := strlen(needle);
+  if m = 0 then
+    return true;
+  if n < m then
+    return false;
+  i := 0;
+  while i <= n - m do
+  begin
+    if substr(hay, i, m) = needle then
+      return true;
+    i := i + 1;
+  end;
+  return false;
+end;
+
+function c_dirname(path: string): string;
+var i: integer;
+n: integer;
+last: integer;
+ch: string;
+sep: string;
+begin
+  n := strlen(path);
+  last := -1;
+  sep := substr(path_join('a', 'b'), 1, 1);
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(path, i, 1);
+    if ch = '/' or ch = sep then
+      last := i;
+    i := i + 1;
+  end;
+  if last < 0 then
+    return '.';
+  if last = 0 then
+    return '/';
+  if last = 2 and substr(path, 1, 1) = ':' then
+    return substr(path, 0, 3);
+  return substr(path, 0, last);
+end;
+
+function c_resolve_module(base_dir: string; name: string): string;
+var p: string;
+base: string;
+begin
+  base := base_dir;
+  p := path_join(base_dir, concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(base_dir, concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base_dir, 'lexer'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base_dir, 'parser'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base_dir, 'codegen'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base_dir, 'typecheck'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  base := cwd();
+  p := path_join(base, concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(base, concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'lexer'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'parser'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'codegen'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'typecheck'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  if env_has('CERBERUS_STDLIB') then
+  begin
+    p := path_join(env_get('CERBERUS_STDLIB'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(env_get('CERBERUS_STDLIB'), concat(name, '.cerberus'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'lexer'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'parser'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'codegen'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'typecheck'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+  end;
+  return '';
+end;
+
+function c_merge_uses(ast_root: string; base_dir: string): string;
+var body: string;
+parts: vector of string;
+name: string;
+uses_node: string;
+block: string;
+mods: vector of string;
+decls: vector of string;
+stmts: vector of string;
+mod_ast: string;
+mod_body: string;
+  mod_parts: vector of string;
+  mod_block: string;
+  mod_decls: vector of string;
+  merged_mods: vector of string;
+  mod_stmts: vector of string;
+  i: integer;
+  n: integer;
+  path: string;
+  queue: vector of string;
+  visited: string;
+  mod_uses: vector of string;
+  skip: boolean;
+  mod_name: string;
+  iter: integer;
+  max_iter: integer;
+begin
+  if starts_with(ast_root, 'ERROR:') then
+    return ast_root;
+  body := c_extract(ast_root);
+  parts := c_split_top(body, ';');
+  if vector_len(parts) < 3 then
+  begin
+    if env_has('CERBERUS_DEBUG_AST') then
+    begin
+      writeln('DEBUG: parts<3');
+      if strlen(body) > 120 then
+        writeln(concat('BODY_HEAD: ', substr(body, 0, 120)))
+      else
+        writeln(concat('BODY_HEAD: ', body));
+    end;
+    return 'ERROR: invalid ast (merge uses)';
+  end;
+  name := vector_get(parts, 0);
+  uses_node := vector_get(parts, 1);
+  block := vector_get(parts, 2);
+  mods := c_extract_list(uses_node);
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln(concat('USES_NODE: ', uses_node));
+  if vector_len(mods) = 0 then
+  begin
+    if env_has('CERBERUS_DEBUG_AST') then
+      writeln('DEBUG: uses empty');
+    return ast_root;
+  end;
+  merged_mods := vector_new_str();
+  queue := mods;
+  visited := ',';
+  iter := 0;
+  max_iter := 5000;
+  while vector_len(queue) > 0 do
+  begin
+    iter := iter + 1;
+    if env_has('CERBERUS_DEBUG_AST') then
+    begin
+      if iter = 1 or iter = 10 or iter = 50 or iter = 100 or iter = 200 or iter = 500 or iter = 1000 then
+        writeln(concat('MERGE_STEP: ', concat(p_int_to_str(iter), concat(' queue=', p_int_to_str(vector_len(queue))))));
+    end;
+    if iter > max_iter then
+      return 'ERROR: merge uses overflow';
+    path := '';
+    mod_name := vector_get(queue, 0);
+    queue := vector_remove(queue, 0);
+    if env_has('CERBERUS_DEBUG_AST') then
+      writeln(concat('MERGE: ', mod_name));
+    skip := false;
+    if c_contains(visited, concat(',', concat(mod_name, ','))) then
+      skip := true
+    else
+    begin
+      visited := concat(visited, concat(mod_name, ','));
+      path := c_resolve_module(base_dir, mod_name);
+    end;
+    if not skip then
+    begin
+      if path = '' then
+        return concat('ERROR: module not found: ', mod_name);
+      mod_ast := parse_string(readfile(path));
+      if starts_with(mod_ast, 'ERROR:') then
+        return mod_ast;
+      mod_body := c_extract(mod_ast);
+      mod_parts := c_split_top(mod_body, ';');
+      if vector_len(mod_parts) < 3 then
+        return concat('ERROR: invalid module: ', mod_name);
+      mod_uses := c_extract_list(vector_get(mod_parts, 1));
+      if vector_len(mod_uses) > 0 then
+        queue := c_vec_concat(queue, mod_uses);
+  mod_block := vector_get(mod_parts, 2);
+  mod_parts := c_split_top(c_extract(mod_block), ';');
+  if vector_len(mod_parts) < 2 then
+  begin
+    if env_has('CERBERUS_DEBUG_AST') then
+    begin
+      writeln(concat('MOD_AST_HEAD: ', substr(mod_ast, 0, 120)));
+      writeln(concat('MOD_BLOCK_HEAD: ', substr(mod_block, 0, 120)));
+      writeln(concat('MOD_BLOCK_LEN: ', p_int_to_str(strlen(mod_block))));
+      if strlen(mod_block) > 120 then
+        writeln(concat('MOD_BLOCK_TAIL: ', substr(mod_block, strlen(mod_block) - 120, 120)));
+      if c_contains(mod_block, ';') then
+        writeln('MOD_BLOCK_HAS_SEMI: true')
+      else
+        writeln('MOD_BLOCK_HAS_SEMI: false');
+    end;
+    return concat('ERROR: invalid module block: ', mod_name);
+  end;
+      mod_decls := c_extract_list(vector_get(mod_parts, 0));
+      mod_stmts := c_extract_list(vector_get(mod_parts, 1));
+      if vector_len(mod_stmts) > 0 then
+        return concat('ERROR: module must not contain statements: ', mod_name);
+      merged_mods := c_vec_concat(mod_decls, merged_mods);
+    end;
+  end;
+  mod_parts := c_split_top(c_extract(block), ';');
+  if vector_len(mod_parts) < 2 then
+    return 'ERROR: invalid program block';
+  decls := c_extract_list(vector_get(mod_parts, 0));
+  stmts := c_extract_list(vector_get(mod_parts, 1));
+  decls := c_vec_concat(merged_mods, decls);
+  block := ast_block(decls, stmts);
+  return ast_program(name, ast_uses(vector_new_str()), block);
+end;
+
+begin
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: enter');
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: compiler entry');
+  if arg_count() < 1 then
+  begin
+    writeln('usage: compiler <input> [output]');
+    return;
+  end;
+
+  no_tc := false;
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln(concat('DEBUG: arg0=', arg(0)));
+  if arg(0) = 'no-typecheck' then
+  begin
+    no_tc := true;
+    if arg_count() < 2 then
+    begin
+      writeln('usage: compiler no-typecheck <input> [output]');
+      return;
+    end;
+    src_path := arg(1);
+    if arg_count() >= 3 then
+      out_path := arg(2)
+    else
+      out_path := 'out.cerb';
+  end
+  else
+  begin
+    src_path := arg(0);
+    if arg_count() >= 2 then
+      out_path := arg(1)
+    else
+      out_path := 'out.cerb';
+  end;
+
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln(concat('DEBUG: src_path=', src_path));
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln(concat('DEBUG: out_path=', out_path));
+  src := readfile(src_path);
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: readfile');
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: readfile ok');
+  ast := parse_string(src);
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: parsed');
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: parse_string ok');
+  ast := c_merge_uses(ast, c_dirname(src_path));
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: merged');
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: merge_uses ok');
+  if env_has('CERBERUS_DEBUG_AST') then
+  begin
+    if strlen(ast) > 120 then
+      writeln(concat('AST_HEAD: ', substr(ast, 0, 120)))
+    else
+      writeln(concat('AST_HEAD: ', ast));
+  end;
+
+  if starts_with(ast, 'ERROR:') then
+  begin
+    writeln(ast);
+    return;
+  end;
+  if substr(ast, 0, 2) <> 'P{' then
+  begin
+    writeln(concat('ERROR: invalid ast: ', substr(ast, 0, 120)));
+    return;
+  end;
+
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: typecheck start');
+  if env_has('CERBERUS_DEBUG_AST') then
+  begin
+    if no_tc then
+      writeln('DEBUG: no_tc=true')
+    else
+      writeln('DEBUG: no_tc=false');
+  end;
+  if not no_tc then
+  begin
+    if env_has('CERBERUS_DEBUG_PROGRESS') then
+      writeln('PROGRESS: typecheck start');
+    if not typecheck_ok(ast) then
+    begin
+      err := typecheck_error(ast);
+      if err = '' then
+        err := 'typecheck failed';
+      writeln(concat('ERROR: ', err));
+      return;
+    end;
+    if env_has('CERBERUS_DEBUG_PROGRESS') then
+      writeln('PROGRESS: typecheck done');
+  end;
+  if env_has('CERBERUS_DEBUG_AST') then
+  begin
+    if no_tc then
+      writeln('DEBUG: typecheck skipped')
+    else
+      writeln('DEBUG: typecheck ok');
+  end;
+
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: codegen start');
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: codegen start');
+  codegen_emit_to(ast, out_path);
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: codegen done');
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln('DEBUG: codegen ok');
+  writeln(concat('ok: wrote ', out_path));
+end.

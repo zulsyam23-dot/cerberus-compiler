@@ -1,0 +1,5 @@
+program lexer;
+uses lexer_core, lexer_tokenize;
+
+begin
+end.

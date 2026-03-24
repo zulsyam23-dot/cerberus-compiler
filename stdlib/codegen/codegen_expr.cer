@@ -1,0 +1,133 @@
+program codegen_expr;
+uses codegen_util, codegen_state;
+
+function cg_emit_expr(state: map; expr: string): map;
+var kind: string;
+body: string;
+parts: vector of string;
+op: string;
+left: string;
+right: string;
+name: string;
+args: vector of string;
+i: integer;
+n: integer;
+idx: integer;
+res: integer;
+begin
+  kind := cg_kind(expr);
+  if kind = 'EInt' then
+  begin
+    bc_emit_const_int(cg_parse_int(cg_extract(expr)));
+    return state;
+  end;
+  if kind = 'EBool' then
+  begin
+    if cg_extract(expr) = 'true' then
+      bc_emit_const_bool(true)
+    else
+      bc_emit_const_bool(false);
+    return state;
+  end;
+  if kind = 'EStr' then
+  begin
+    bc_emit_const_str(cg_strip_quotes(cg_extract(expr)));
+    return state;
+  end;
+  if kind = 'EVar' then
+  begin
+    state := cg_sym_get(state, cg_extract(expr));
+    res := cg_get_result(state);
+    idx := res;
+    bc_emit_load(idx);
+    return state;
+  end;
+  if kind = 'EUnary' then
+  begin
+    body := cg_extract(expr);
+    parts := cg_split_top(body, ';');
+    op := vector_get(parts, 0);
+    left := vector_get(parts, 1);
+    state := cg_emit_expr(state, left);
+    if op = '-' then
+      bc_emit_neg()
+    else if op = 'not' then
+      bc_emit_not();
+    return state;
+  end;
+  if kind = 'EBin' then
+  begin
+    body := cg_extract(expr);
+    parts := cg_split_top(body, ';');
+    op := vector_get(parts, 0);
+    left := vector_get(parts, 1);
+    right := vector_get(parts, 2);
+    state := cg_emit_expr(state, left);
+    state := cg_emit_expr(state, right);
+    if op = '+' then bc_emit_add()
+    else if op = '-' then bc_emit_sub()
+    else if op = '*' then bc_emit_mul()
+    else if op = '/' then bc_emit_div()
+    else if op = '=' then bc_emit_eq()
+    else if op = '<>' then bc_emit_ne()
+    else if op = '<' then bc_emit_lt()
+    else if op = '<=' then bc_emit_le()
+    else if op = '>' then bc_emit_gt()
+    else if op = '>=' then bc_emit_ge()
+    else if op = 'and' then bc_emit_and()
+    else if op = 'or' then bc_emit_or();
+    return state;
+  end;
+  if kind = 'ECall' then
+  begin
+    body := cg_extract(expr);
+    parts := cg_split_top(body, ';');
+    name := vector_get(parts, 0);
+    args := cg_extract_list(vector_get(parts, 1));
+    n := vector_len(args);
+    i := 0;
+    while i < n do
+    begin
+      state := cg_emit_expr(state, vector_get(args, i));
+      i := i + 1;
+    end;
+
+    if name = 'strlen' then bc_emit_strlen()
+    else if name = 'concat' then bc_emit_concat()
+    else if name = 'substr' then bc_emit_substr()
+    else if name = 'replace' then bc_emit_replace()
+    else if name = 'vector_new' or name = 'vector_new_int' or name = 'vector_new_bool' or name = 'vector_new_str' then bc_emit_vec_new()
+    else if name = 'vector_len' then bc_emit_vec_len()
+    else if name = 'vector_get' then bc_emit_vec_get()
+    else if name = 'vector_set' then bc_emit_vec_set()
+    else if name = 'vector_push' then bc_emit_vec_push()
+    else if name = 'vector_remove' then bc_emit_vec_remove()
+    else if name = 'vector_last' then bc_emit_vec_last()
+    else if name = 'vector_pop' then bc_emit_vec_pop()
+    else if name = 'map_new' then bc_emit_map_new()
+    else if name = 'map_len' then bc_emit_map_len()
+    else if name = 'map_set' then bc_emit_map_set()
+    else if name = 'map_get' then bc_emit_map_get()
+    else if name = 'map_has' then bc_emit_map_has()
+    else if name = 'map_remove' then bc_emit_map_remove()
+    else if name = 'readfile' then bc_emit_readfile()
+    else if name = 'arg_count' then bc_emit_arg_count()
+    else if name = 'arg' then bc_emit_arg()
+    else if name = 'string_clear' then bc_emit_str_clear()
+    else if name = 'vector_clear' then bc_emit_vec_clear()
+    else if name = 'map_clear' then bc_emit_map_clear()
+    else if name = 'env_get' then bc_emit_env_get()
+    else if name = 'env_has' then bc_emit_env_has()
+    else if name = 'cwd' then bc_emit_cwd()
+    else if name = 'path_join' then bc_emit_path_join()
+    else if name = 'fs_exists' then bc_emit_fs_exists()
+    else if name = 'fs_listdir' then bc_emit_fs_listdir()
+    else if name = 'now_timestamp' then bc_emit_now_timestamp()
+    else bc_emit_call(name);
+    return state;
+  end;
+  return state;
+end;
+
+begin
+end.

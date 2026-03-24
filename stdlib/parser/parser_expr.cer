@@ -1,0 +1,211 @@
+program parser_expr;
+uses ast, parser_state;
+
+function parse_primary(tokens: vector of string; state: map): map;
+var tok: string;
+name: string;
+args: string;
+expr: string;
+index_expr: string;
+index_args: vector of string;
+begin
+  expr := '';
+  tok := p_peek(tokens, state);
+  if tok = '' then
+  begin
+    state := p_set_error(state, 'expected primary expression');
+    return p_set_result(state, '');
+  end;
+  if p_is_int(tok) then
+  begin
+    state := p_next(tokens, state);
+    return p_set_result(state, ast_int(tok));
+  end;
+  if p_is_str(tok) then
+  begin
+    state := p_next(tokens, state);
+    return p_set_result(state, ast_str(tok));
+  end;
+  if tok = 'true' or tok = 'false' then
+  begin
+    state := p_next(tokens, state);
+    return p_set_result(state, ast_bool(tok));
+  end;
+  if tok = '(' then
+  begin
+    state := p_next(tokens, state);
+    state := parse_expr(tokens, state);
+    expr := p_get_result(state);
+    state := p_expect(tokens, state, ')');
+    return p_set_result(state, expr);
+  end;
+  if p_is_ident(tok) then
+  begin
+    state := p_next(tokens, state);
+    name := p_get_result(state);
+    state := p_match(tokens, state, '(');
+    if p_get_result(state) = 'true' then
+    begin
+      state := parse_args(tokens, state);
+      args := p_get_result(state);
+      state := p_expect(tokens, state, ')');
+      expr := ast_call_expr(name, args);
+    end;
+    if expr = '' then
+      expr := ast_var(name);
+    while p_peek(tokens, state) = '[' do
+    begin
+      state := p_next(tokens, state);
+      state := parse_expr(tokens, state);
+      index_expr := p_get_result(state);
+      state := p_expect(tokens, state, ']');
+      index_args := vector_new_str();
+      index_args := vector_push(index_args, expr);
+      index_args := vector_push(index_args, index_expr);
+      expr := ast_call_expr('vector_get', ast_args(index_args));
+    end;
+    return p_set_result(state, expr);
+  end;
+  state := p_set_error(state, 'invalid primary expression');
+  return p_set_result(state, '');
+end;
+
+function parse_unary(tokens: vector of string; state: map): map;
+var tok: string;
+expr: string;
+begin
+  tok := p_peek(tokens, state);
+  if tok = '-' or tok = 'not' then
+  begin
+    state := p_next(tokens, state);
+    tok := p_get_result(state);
+    state := parse_unary(tokens, state);
+    expr := p_get_result(state);
+    return p_set_result(state, ast_unary(tok, expr));
+  end;
+  return parse_primary(tokens, state);
+end;
+
+function parse_mul(tokens: vector of string; state: map): map;
+var left: string;
+op: string;
+right: string;
+begin
+  state := parse_unary(tokens, state);
+  left := p_get_result(state);
+  while p_peek(tokens, state) = '*' or p_peek(tokens, state) = '/' do
+  begin
+    state := p_next(tokens, state);
+    op := p_get_result(state);
+    state := parse_unary(tokens, state);
+    right := p_get_result(state);
+    left := ast_bin(op, left, right);
+    state := p_set_result(state, left);
+  end;
+  return state;
+end;
+
+function parse_add(tokens: vector of string; state: map): map;
+var left: string;
+op: string;
+right: string;
+begin
+  state := parse_mul(tokens, state);
+  left := p_get_result(state);
+  while p_peek(tokens, state) = '+' or p_peek(tokens, state) = '-' do
+  begin
+    state := p_next(tokens, state);
+    op := p_get_result(state);
+    state := parse_mul(tokens, state);
+    right := p_get_result(state);
+    left := ast_bin(op, left, right);
+    state := p_set_result(state, left);
+  end;
+  return state;
+end;
+
+function parse_cmp(tokens: vector of string; state: map): map;
+var left: string;
+op: string;
+right: string;
+tok: string;
+begin
+  state := parse_add(tokens, state);
+  left := p_get_result(state);
+  tok := p_peek(tokens, state);
+  while tok = '=' or tok = '<>' or tok = '<' or tok = '<=' or tok = '>' or tok = '>=' do
+  begin
+    state := p_next(tokens, state);
+    op := p_get_result(state);
+    state := parse_add(tokens, state);
+    right := p_get_result(state);
+    left := ast_bin(op, left, right);
+    state := p_set_result(state, left);
+    tok := p_peek(tokens, state);
+  end;
+  return state;
+end;
+
+function parse_and(tokens: vector of string; state: map): map;
+var left: string;
+right: string;
+begin
+  state := parse_cmp(tokens, state);
+  left := p_get_result(state);
+  while p_peek(tokens, state) = 'and' do
+  begin
+    state := p_next(tokens, state);
+    state := parse_cmp(tokens, state);
+    right := p_get_result(state);
+    left := ast_bin('and', left, right);
+    state := p_set_result(state, left);
+  end;
+  return state;
+end;
+
+function parse_or(tokens: vector of string; state: map): map;
+var left: string;
+right: string;
+begin
+  state := parse_and(tokens, state);
+  left := p_get_result(state);
+  while p_peek(tokens, state) = 'or' do
+  begin
+    state := p_next(tokens, state);
+    state := parse_and(tokens, state);
+    right := p_get_result(state);
+    left := ast_bin('or', left, right);
+    state := p_set_result(state, left);
+  end;
+  return state;
+end;
+
+function parse_expr(tokens: vector of string; state: map): map;
+begin
+  return parse_or(tokens, state);
+end;
+
+function parse_args(tokens: vector of string; state: map): map;
+var args: vector of string;
+expr: string;
+begin
+  args := vector_new_str();
+  if p_peek(tokens, state) = ')' then
+    return p_set_result(state, ast_args(args));
+  state := parse_expr(tokens, state);
+  expr := p_get_result(state);
+  if p_has_error(state) then
+    return p_set_result(state, ast_args(args));
+  args := vector_push(args, expr);
+  while p_peek(tokens, state) = ',' do
+  begin
+    state := p_next(tokens, state);
+    state := parse_expr(tokens, state);
+    expr := p_get_result(state);
+    args := vector_push(args, expr);
+  end;
+  return p_set_result(state, ast_args(args));
+end;
+
+begin
+end.

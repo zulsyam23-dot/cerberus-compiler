@@ -1,0 +1,81 @@
+program typecheck_core;
+
+function tc_state_new(): map;
+var s: map;
+begin
+  s := map_new();
+  s := map_set(s, '@error', '');
+  s := map_set(s, '@result', '');
+  return s;
+end;
+
+function tc_get_error(state: map): string;
+begin
+  if map_has(state, '@error') then
+    return map_get(state, '@error');
+  return '';
+end;
+
+function tc_set_error(state: map; msg: string): map;
+begin
+  if tc_get_error(state) = '' then
+    return map_set(state, '@error', msg);
+  return state;
+end;
+
+function tc_has_error(state: map): boolean;
+begin
+  return tc_get_error(state) <> '';
+end;
+
+function tc_get_result(state: map): string;
+begin
+  if map_has(state, '@result') then
+    return map_get(state, '@result');
+  return '';
+end;
+
+function tc_set_result(state: map; res: string): map;
+begin
+  return map_set(state, '@result', res);
+end;
+
+function tc_fn_key(name: string): string;
+begin
+  return concat('@fn:', name);
+end;
+
+function tc_set_fn(state: map; name: string; ret: string; params: vector of string): map;
+var sig: string;
+i: integer;
+n: integer;
+begin
+  sig := concat(ret, '|');
+  i := 0;
+  n := vector_len(params);
+  while i < n do
+  begin
+    if i = 0 then
+      sig := concat(sig, vector_get(params, i))
+    else
+      sig := concat(sig, concat(';', vector_get(params, i)));
+    i := i + 1;
+  end;
+  return map_set(state, tc_fn_key(name), sig);
+end;
+
+function tc_get_ret(state: map): string;
+begin
+  if map_has(state, '@ret') then
+    return map_get(state, '@ret');
+  return '';
+end;
+
+function tc_set_ret(state: map; t: string): map;
+begin
+  return map_set(state, '@ret', t);
+end;
+
+begin
+end.
+

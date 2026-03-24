@@ -1,0 +1,20 @@
+program typecheck;
+uses typecheck_impl;
+
+function typecheck_version(): string;
+begin
+  return '0.3';
+end;
+
+function typecheck_available(): boolean;
+begin
+  return true;
+end;
+
+function typecheck_error(ast: string): string;
+begin
+  return typecheck_error_impl(ast);
+end;
+
+begin
+end.

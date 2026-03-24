@@ -1,0 +1,500 @@
+program parser_stmt;
+uses ast, parser_state, parser_expr;
+
+function parse_ident_list(tokens: vector of string; state: map): map;
+var names: vector of string;
+name: string;
+begin
+  names := vector_new_str();
+  if not p_is_ident(p_peek(tokens, state)) then
+    return p_set_result(state, '');
+  state := p_next(tokens, state);
+  name := p_get_result(state);
+  names := vector_push(names, name);
+  while p_peek(tokens, state) = ',' do
+  begin
+    state := p_next(tokens, state);
+    state := p_next(tokens, state);
+    name := p_get_result(state);
+    names := vector_push(names, name);
+  end;
+  return p_set_result(state, ast_join(names));
+end;
+
+function parse_type(tokens: vector of string; state: map): map;
+var parts: vector of string;
+tok: string;
+out: string;
+i: integer;
+n: integer;
+begin
+  parts := vector_new_str();
+  while p_peek(tokens, state) <> '' and p_peek(tokens, state) <> ';' and p_peek(tokens, state) <> ')' and p_peek(tokens, state) <> ',' do
+  begin
+    state := p_next(tokens, state);
+    tok := p_get_result(state);
+    parts := vector_push(parts, tok);
+  end;
+  out := '';
+  i := 0;
+  n := vector_len(parts);
+  while i < n do
+  begin
+    out := concat(out, vector_get(parts, i));
+    i := i + 1;
+  end;
+  return p_set_result(state, out);
+end;
+
+function parse_param_list(tokens: vector of string; state: map): map;
+var params: vector of string;
+names: vector of string;
+name: string;
+ty: string;
+ i: integer;
+ n: integer;
+ done: boolean;
+ prev_idx: integer;
+begin
+  params := vector_new_str();
+  if p_peek(tokens, state) <> '(' then
+    return p_set_result(state, ast_params(params));
+  state := p_next(tokens, state);
+  if p_peek(tokens, state) <> ')' then
+  begin
+    done := false;
+    while p_peek(tokens, state) <> '' and not done do
+    begin
+      prev_idx := p_get_idx(state);
+      state := parse_ident_list(tokens, state);
+      names := p_split_top(p_get_result(state), ',');
+      if vector_len(names) = 0 then
+      begin
+        state := p_set_error(state, 'expected parameter name');
+        done := true;
+      end;
+      state := p_expect(tokens, state, ':');
+      state := parse_type(tokens, state);
+      ty := p_get_result(state);
+      i := 0;
+      n := vector_len(names);
+      while i < n do
+      begin
+        name := vector_get(names, i);
+        params := vector_push(params, ast_param(name, ty));
+        i := i + 1;
+      end;
+      if p_peek(tokens, state) = ';' then
+      begin
+        state := p_next(tokens, state);
+      end
+      else
+        done := true;
+      if p_get_idx(state) = prev_idx then
+      begin
+        state := p_set_error(state, 'parser stalled in param list');
+        done := true;
+      end;
+    end;
+  end;
+  state := p_expect(tokens, state, ')');
+  return p_set_result(state, ast_params(params));
+end;
+
+function parse_var_section(tokens: vector of string; state: map; decls: vector of string): map;
+var names: vector of string;
+name: string;
+ty: string;
+out: vector of string;
+i: integer;
+n: integer;
+begin
+  out := decls;
+  state := p_next(tokens, state);
+  while p_is_ident(p_peek(tokens, state)) do
+  begin
+    state := parse_ident_list(tokens, state);
+    names := p_split_top(p_get_result(state), ',');
+    state := p_expect(tokens, state, ':');
+    state := parse_type(tokens, state);
+    ty := p_get_result(state);
+    if p_peek(tokens, state) = ';' then
+      state := p_next(tokens, state);
+    i := 0;
+    n := vector_len(names);
+    while i < n do
+    begin
+      name := vector_get(names, i);
+      out := vector_push(out, ast_var_decl(name, ty));
+      i := i + 1;
+    end;
+  end;
+  return p_set_result(state, ast_decls(out));
+end;
+
+function parse_decl(tokens: vector of string; state: map; decls: vector of string): map;
+var out: vector of string;
+name: string;
+params: string;
+ret: string;
+body: string;
+begin
+  out := decls;
+  if p_peek(tokens, state) = 'var' then
+    return parse_var_section(tokens, state, out);
+  if p_peek(tokens, state) = 'procedure' then
+  begin
+    state := p_next(tokens, state);
+    state := p_next(tokens, state);
+    name := p_get_result(state);
+    state := parse_param_list(tokens, state);
+    params := p_get_result(state);
+    state := p_expect(tokens, state, ';');
+    state := parse_block(tokens, state);
+    body := p_get_result(state);
+    state := p_expect(tokens, state, ';');
+    out := vector_push(out, ast_proc_decl(name, params, body));
+    return p_set_result(state, ast_decls(out));
+  end;
+  if p_peek(tokens, state) = 'function' then
+  begin
+    state := p_next(tokens, state);
+    state := p_next(tokens, state);
+    name := p_get_result(state);
+    state := parse_param_list(tokens, state);
+    params := p_get_result(state);
+    state := p_expect(tokens, state, ':');
+    state := parse_type(tokens, state);
+    ret := p_get_result(state);
+    state := p_expect(tokens, state, ';');
+    state := parse_block(tokens, state);
+    body := p_get_result(state);
+    state := p_expect(tokens, state, ';');
+    out := vector_push(out, ast_func_decl(name, params, ret, body));
+    return p_set_result(state, ast_decls(out));
+  end;
+  return p_set_result(state, ast_decls(out));
+end;
+
+function parse_stmt(tokens: vector of string; state: map): map;
+var tok: string;
+name: string;
+expr: string;
+args: string;
+block: string;
+cond: string;
+then_stmt: string;
+else_stmt: string;
+start_expr: string;
+end_expr: string;
+body_stmt: string;
+init_stmt: string;
+inc_stmt: string;
+loop_cond: string;
+loop_block: string;
+repeat_stmts: vector of string;
+repeat_block: string;
+repeat_body: string;
+not_cond: string;
+loop_stmts: vector of string;
+outer_stmts: vector of string;
+empty_decls: vector of string;
+index_expr: string;
+index_args: vector of string;
+index_list: vector of string;
+base_expr: string;
+last_index: string;
+ i: integer;
+ n: integer;
+ done: boolean;
+begin
+  tok := p_peek(tokens, state);
+  if tok = 'return' then
+  begin
+    state := p_next(tokens, state);
+    if p_peek(tokens, state) = ';' or p_peek(tokens, state) = 'end' then
+      return p_set_result(state, ast_return_void());
+    state := parse_expr(tokens, state);
+    expr := p_get_result(state);
+    return p_set_result(state, ast_return(expr));
+  end;
+  if tok = 'begin' then
+  begin
+    state := parse_block(tokens, state);
+    block := p_get_result(state);
+    return p_set_result(state, ast_block_stmt(block));
+  end;
+  if tok = 'if' then
+  begin
+    state := p_next(tokens, state);
+    state := parse_expr(tokens, state);
+    cond := p_get_result(state);
+    state := p_expect(tokens, state, 'then');
+    state := parse_stmt(tokens, state);
+    then_stmt := p_get_result(state);
+    state := p_match(tokens, state, 'else');
+    if p_get_result(state) = 'true' then
+    begin
+      state := parse_stmt(tokens, state);
+      else_stmt := p_get_result(state);
+    end
+    else
+      else_stmt := ast_empty_stmt();
+    return p_set_result(state, ast_if(cond, then_stmt, else_stmt));
+  end;
+  if tok = 'case' then
+  begin
+    state := p_next(tokens, state);
+    state := parse_expr(tokens, state);
+    expr := p_get_result(state);
+    state := p_expect(tokens, state, 'of');
+    loop_stmts := vector_new_str();
+    outer_stmts := vector_new_str();
+    else_stmt := ast_empty_stmt();
+    done := false;
+    while p_peek(tokens, state) <> '' and p_peek(tokens, state) <> 'end' and not done do
+    begin
+      if p_peek(tokens, state) = ';' then
+        state := p_next(tokens, state)
+      else if p_peek(tokens, state) = 'else' then
+      begin
+        state := p_next(tokens, state);
+        state := parse_stmt(tokens, state);
+        else_stmt := p_get_result(state);
+        done := true;
+      end
+      else
+      begin
+        state := parse_expr(tokens, state);
+        cond := p_get_result(state);
+        state := p_expect(tokens, state, ':');
+        state := parse_stmt(tokens, state);
+        then_stmt := p_get_result(state);
+        loop_stmts := vector_push(loop_stmts, ast_bin('=', expr, cond));
+        outer_stmts := vector_push(outer_stmts, then_stmt);
+      end;
+      if not done and p_peek(tokens, state) = ';' then
+        state := p_next(tokens, state);
+    end;
+    state := p_expect(tokens, state, 'end');
+    i := vector_len(loop_stmts) - 1;
+    block := else_stmt;
+    while i >= 0 do
+    begin
+      cond := vector_get(loop_stmts, i);
+      then_stmt := vector_get(outer_stmts, i);
+      block := ast_if(cond, then_stmt, block);
+      i := i - 1;
+    end;
+    return p_set_result(state, block);
+  end;
+  if tok = 'for' then
+  begin
+    state := p_next(tokens, state);
+    state := p_next(tokens, state);
+    name := p_get_result(state);
+    state := p_expect(tokens, state, ':=');
+    state := parse_expr(tokens, state);
+    start_expr := p_get_result(state);
+    tok := p_peek(tokens, state);
+    if tok <> 'to' and tok <> 'downto' then
+    begin
+      state := p_set_error(state, 'expected to or downto in for');
+      return p_set_result(state, '');
+    end;
+    state := p_next(tokens, state);
+    tok := p_get_result(state);
+    state := parse_expr(tokens, state);
+    end_expr := p_get_result(state);
+    state := p_expect(tokens, state, 'do');
+    state := parse_stmt(tokens, state);
+    body_stmt := p_get_result(state);
+
+    init_stmt := ast_assign(name, start_expr);
+    if tok = 'to' then
+    begin
+      loop_cond := ast_bin('<=', ast_var(name), end_expr);
+      inc_stmt := ast_assign(name, ast_bin('+', ast_var(name), ast_int('1')));
+    end
+    else
+    begin
+      loop_cond := ast_bin('>=', ast_var(name), end_expr);
+      inc_stmt := ast_assign(name, ast_bin('-', ast_var(name), ast_int('1')));
+    end;
+
+    loop_stmts := vector_new_str();
+    loop_stmts := vector_push(loop_stmts, body_stmt);
+    loop_stmts := vector_push(loop_stmts, inc_stmt);
+    empty_decls := vector_new_str();
+    loop_block := ast_block(empty_decls, loop_stmts);
+    body_stmt := ast_block_stmt(loop_block);
+
+    outer_stmts := vector_new_str();
+    outer_stmts := vector_push(outer_stmts, init_stmt);
+    outer_stmts := vector_push(outer_stmts, ast_while(loop_cond, body_stmt));
+    block := ast_block(empty_decls, outer_stmts);
+    return p_set_result(state, ast_block_stmt(block));
+  end;
+  if tok = 'repeat' then
+  begin
+    state := p_next(tokens, state);
+    repeat_stmts := vector_new_str();
+    while p_peek(tokens, state) <> '' and p_peek(tokens, state) <> 'until' do
+    begin
+      if p_peek(tokens, state) = ';' then
+        state := p_next(tokens, state)
+      else
+      begin
+        state := parse_stmt(tokens, state);
+        if p_has_error(state) then
+          return p_set_result(state, '');
+        repeat_body := p_get_result(state);
+        repeat_stmts := vector_push(repeat_stmts, repeat_body);
+        if p_peek(tokens, state) = ';' then
+          state := p_next(tokens, state);
+      end;
+    end;
+    state := p_expect(tokens, state, 'until');
+    state := parse_expr(tokens, state);
+    cond := p_get_result(state);
+    empty_decls := vector_new_str();
+    repeat_block := ast_block(empty_decls, repeat_stmts);
+    repeat_body := ast_block_stmt(repeat_block);
+    not_cond := ast_unary('not', cond);
+    body_stmt := ast_while(not_cond, repeat_body);
+    outer_stmts := vector_new_str();
+    outer_stmts := vector_push(outer_stmts, repeat_body);
+    outer_stmts := vector_push(outer_stmts, body_stmt);
+    block := ast_block(empty_decls, outer_stmts);
+    return p_set_result(state, ast_block_stmt(block));
+  end;
+  if tok = 'while' then
+  begin
+    state := p_next(tokens, state);
+    state := parse_expr(tokens, state);
+    cond := p_get_result(state);
+    state := p_expect(tokens, state, 'do');
+    state := parse_stmt(tokens, state);
+    block := p_get_result(state);
+    return p_set_result(state, ast_while(cond, block));
+  end;
+  if p_is_ident(tok) then
+  begin
+    state := p_next(tokens, state);
+    name := p_get_result(state);
+    index_list := vector_new_str();
+    while p_peek(tokens, state) = '[' do
+    begin
+      state := p_next(tokens, state);
+      state := parse_expr(tokens, state);
+      index_expr := p_get_result(state);
+      state := p_expect(tokens, state, ']');
+      index_list := vector_push(index_list, index_expr);
+    end;
+    state := p_match(tokens, state, ':=');
+    if p_get_result(state) = 'true' then
+    begin
+      state := parse_expr(tokens, state);
+      expr := p_get_result(state);
+      if vector_len(index_list) > 0 then
+      begin
+        base_expr := ast_var(name);
+        i := 0;
+        n := vector_len(index_list);
+        while i + 1 < n do
+        begin
+          index_args := vector_new_str();
+          index_args := vector_push(index_args, base_expr);
+          index_args := vector_push(index_args, vector_get(index_list, i));
+          base_expr := ast_call_expr('vector_get', ast_args(index_args));
+          i := i + 1;
+        end;
+        last_index := vector_get(index_list, n - 1);
+        index_args := vector_new_str();
+        index_args := vector_push(index_args, base_expr);
+        index_args := vector_push(index_args, last_index);
+        index_args := vector_push(index_args, expr);
+        return p_set_result(state, ast_call('vector_set', ast_args(index_args)));
+      end;
+      return p_set_result(state, ast_assign(name, expr));
+    end;
+    state := p_match(tokens, state, '(');
+    if p_get_result(state) = 'true' then
+    begin
+      state := parse_args(tokens, state);
+      args := p_get_result(state);
+      state := p_expect(tokens, state, ')');
+      return p_set_result(state, ast_call(name, args));
+    end;
+    args := ast_args(vector_new_str());
+    return p_set_result(state, ast_call(name, args));
+  end;
+  state := p_set_error(state, 'invalid statement');
+  return p_set_result(state, '');
+end;
+
+function parse_block(tokens: vector of string; state: map): map;
+var decls: vector of string;
+stmts: vector of string;
+stmt: string;
+done: boolean;
+parts: vector of string;
+prev_idx: integer;
+last_report: integer;
+cur_idx: integer;
+begin
+  decls := vector_new_str();
+  stmts := vector_new_str();
+  last_report := -1000;
+  while p_peek(tokens, state) = 'var' or p_peek(tokens, state) = 'procedure' or p_peek(tokens, state) = 'function' do
+  begin
+    prev_idx := p_get_idx(state);
+    state := parse_decl(tokens, state, decls);
+    if p_get_idx(state) = prev_idx then
+      return p_set_error(state, 'parser stalled in decl');
+    parts := p_extract_list(p_get_result(state));
+    decls := parts;
+  end;
+  state := p_expect(tokens, state, 'begin');
+  if p_get_result(state) <> 'true' then
+    return p_set_result(state, ast_block(decls, stmts));
+  done := false;
+  while p_peek(tokens, state) <> '' and p_peek(tokens, state) <> 'end' and not done do
+  begin
+    if env_has('CERBERUS_DEBUG_PROGRESS') then
+    begin
+      cur_idx := p_get_idx(state);
+      if cur_idx - last_report >= 1000 then
+      begin
+        writeln(concat('PROGRESS: parse_block idx=', p_int_to_str(cur_idx)));
+        last_report := cur_idx;
+      end;
+    end;
+    if p_peek(tokens, state) = ';' then
+    begin
+      state := p_next(tokens, state);
+    end
+    else
+    begin
+      prev_idx := p_get_idx(state);
+      state := parse_stmt(tokens, state);
+      stmt := p_get_result(state);
+      if p_has_error(state) then
+        done := true
+      else
+        stmts := vector_push(stmts, stmt);
+      if not done and p_get_idx(state) = prev_idx then
+      begin
+        state := p_set_error(state, 'parser stalled in stmt');
+        done := true;
+      end;
+      if not done and p_peek(tokens, state) = ';' then
+        state := p_next(tokens, state);
+    end;
+  end;
+  state := p_expect(tokens, state, 'end');
+  return p_set_result(state, ast_block(decls, stmts));
+end;
+
+begin
+end.

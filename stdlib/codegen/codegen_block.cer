@@ -1,0 +1,27 @@
+program codegen_block;
+uses codegen_util, codegen_state, codegen_stmt;
+
+procedure codegen_emit_to(ast: string; path: string);
+var body: string;
+parts: vector of string;
+block: string;
+decls: vector of string;
+state: map;
+begin
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: codegen_emit_to enter');
+  state := cg_state_new();
+  builder_new('cerberus');
+  body := cg_extract(ast);
+  parts := cg_split_top(body, ';');
+  block := vector_get(parts, 2);
+  decls := cg_extract_list(vector_get(cg_split_top(cg_extract(block), ';'), 0));
+  state := cg_emit_func_decls(state, decls);
+  builder_main();
+  state := cg_emit_block(state, block);
+  builder_emit_halt();
+  builder_write(path);
+end;
+
+begin
+end.

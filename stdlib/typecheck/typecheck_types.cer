@@ -1,0 +1,38 @@
+program typecheck_types;
+uses typecheck_util;
+
+function tc_norm_type(t: string): string;
+begin
+  if t = 'integer' then return 'int';
+  if t = 'boolean' then return 'bool';
+  if t = 'string' then return 'string';
+  if t = 'map' then return 'map<string,string>';
+  if strlen(t) <= 8 then
+    return t;
+  if substr(t, 0, 8) = 'vectorof' then
+    return tc_type_vector(tc_norm_type(substr(t, 8, strlen(t) - 8)));
+  return t;
+end;
+
+function tc_type_vector(inner: string): string;
+begin
+  return concat('vector<', concat(inner, '>'));
+end;
+
+function tc_is_vector(t: string): boolean;
+begin
+  if strlen(t) <= 8 then
+    return false;
+  if substr(t, 0, 7) <> 'vector<' then
+    return false;
+  return substr(t, strlen(t) - 1, 1) = '>';
+end;
+
+function tc_vec_inner(t: string): string;
+begin
+  return substr(t, 7, strlen(t) - 8);
+end;
+
+begin
+end.
+

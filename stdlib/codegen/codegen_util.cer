@@ -1,0 +1,314 @@
+program codegen_util;
+
+function cg_int_to_str(v: integer): string;
+var digits: string;
+out: string;
+d: integer;
+q: integer;
+begin
+  if v = 0 then
+    return '0';
+  digits := '0123456789';
+  out := '';
+  while v > 0 do
+  begin
+    q := v / 10;
+    d := v - (q * 10);
+    out := concat(substr(digits, d, 1), out);
+    v := q;
+  end;
+  return out;
+end;
+
+function cg_digit_value(ch: string): integer;
+begin
+  if ch = '0' then return 0;
+  if ch = '1' then return 1;
+  if ch = '2' then return 2;
+  if ch = '3' then return 3;
+  if ch = '4' then return 4;
+  if ch = '5' then return 5;
+  if ch = '6' then return 6;
+  if ch = '7' then return 7;
+  if ch = '8' then return 8;
+  if ch = '9' then return 9;
+  return 0;
+end;
+
+function cg_parse_int(s: string): integer;
+var i: integer;
+n: integer;
+v: integer;
+begin
+  v := 0;
+  n := strlen(s);
+  i := 0;
+  while i < n do
+  begin
+    v := v * 10 + cg_digit_value(substr(s, i, 1));
+    i := i + 1;
+  end;
+  return v;
+end;
+
+function cg_trim(s: string): string;
+var i: integer;
+j: integer;
+n: integer;
+done: boolean;
+begin
+  n := strlen(s);
+  if n = 0 then
+    return '';
+  i := 0;
+  done := false;
+  while i < n and not done do
+  begin
+    if substr(s, i, 1) = ' ' then
+      i := i + 1
+    else
+      done := true;
+  end;
+  j := n - 1;
+  done := false;
+  while j >= i and not done do
+  begin
+    if substr(s, j, 1) = ' ' then
+      j := j - 1
+    else
+      done := true;
+  end;
+  if j < i then
+    return '';
+  return substr(s, i, j - i + 1);
+end;
+
+function cg_kind(node: string): string;
+var i: integer;
+n: integer;
+ch: string;
+begin
+  n := strlen(node);
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(node, i, 1);
+    if ch = '{' or ch = '[' then
+      return substr(node, 0, i);
+    i := i + 1;
+  end;
+  return node;
+end;
+
+function cg_extract(node: string): string;
+var n: integer;
+ i: integer;
+ start: integer;
+ end_idx: integer;
+ ch: string;
+begin
+  n := strlen(node);
+  if n < 3 then
+    return '';
+  i := 0;
+  start := -1;
+  end_idx := -1;
+  while i < n do
+  begin
+    ch := substr(node, i, 1);
+    if start < 0 and ch = '{' then
+      start := i;
+    if ch = '}' then
+      end_idx := i;
+    i := i + 1;
+  end;
+  if start < 0 or end_idx <= start then
+    return '';
+  return substr(node, start + 1, end_idx - start - 1);
+end;
+
+function cg_extract_evar_name(node: string): string;
+var i: integer;
+n: integer;
+start: integer;
+end_idx: integer;
+begin
+  n := strlen(node);
+  i := 0;
+  while i + 5 < n do
+  begin
+    if substr(node, i, 5) = 'EVar{' then
+    begin
+      start := i + 5;
+      end_idx := start;
+      while end_idx < n and substr(node, end_idx, 1) <> '}' do
+        end_idx := end_idx + 1;
+      if end_idx > start then
+        return substr(node, start, end_idx - start);
+      return '';
+    end;
+    i := i + 1;
+  end;
+  return '';
+end;
+
+function cg_contains(hay: string; needle: string): boolean;
+var i: integer;
+n: integer;
+m: integer;
+begin
+  n := strlen(hay);
+  m := strlen(needle);
+  if m = 0 then
+    return true;
+  if n < m then
+    return false;
+  i := 0;
+  while i <= n - m do
+  begin
+    if substr(hay, i, m) = needle then
+      return true;
+    i := i + 1;
+  end;
+  return false;
+end;
+
+function cg_split_top(s: string; sep: string): vector of string;
+var out: vector of string;
+cur: string;
+n: integer;
+i: integer;
+ch: string;
+depth: integer;
+in_str: boolean;
+next: string;
+begin
+  if cg_trim(s) = '' then
+    return vector_new_str();
+  out := vector_new_str();
+  cur := '';
+  n := strlen(s);
+  i := 0;
+  depth := 0;
+  in_str := false;
+  while i < n do
+  begin
+    ch := substr(s, i, 1);
+    if in_str then
+    begin
+      if ch = '''' then
+      begin
+        if i + 1 < n and substr(s, i + 1, 1) = '''' then
+        begin
+          cur := concat(cur, '''');
+          cur := concat(cur, '''');
+          if i + 2 >= n then
+            in_str := false
+          else
+          begin
+            next := substr(s, i + 2, 1);
+            if next = '}' or next = ']' or next = ',' or next = ';' or next = ')' then
+              in_str := false;
+          end;
+          i := i + 2;
+        end
+        else
+        begin
+          in_str := false;
+          cur := concat(cur, ch);
+          i := i + 1;
+        end;
+      end
+      else
+      begin
+        cur := concat(cur, ch);
+        i := i + 1;
+      end;
+    end
+    else if ch = '''' then
+    begin
+      in_str := true;
+      cur := concat(cur, ch);
+      i := i + 1;
+    end
+    else if ch = '{' then
+    begin
+      depth := depth + 1;
+      cur := concat(cur, ch);
+      i := i + 1;
+    end
+    else if ch = '}' then
+    begin
+      depth := depth - 1;
+      cur := concat(cur, ch);
+      i := i + 1;
+    end
+    else if depth = 0 and ch = sep then
+    begin
+      out := vector_push(out, cg_trim(cur));
+      cur := '';
+      i := i + 1;
+    end
+    else
+    begin
+      cur := concat(cur, ch);
+      i := i + 1;
+    end;
+  end;
+  out := vector_push(out, cg_trim(cur));
+  return out;
+end;
+
+function cg_extract_list(node: string): vector of string;
+var n: integer;
+body: string;
+begin
+  n := strlen(node);
+  if n < 3 then
+    return vector_new_str();
+  body := substr(node, 2, n - 3);
+  return cg_split_top(body, ',');
+end;
+
+function cg_is_digit(ch: string): boolean;
+begin
+  return ch = '0' or ch = '1' or ch = '2' or ch = '3' or ch = '4' or ch = '5' or ch = '6' or ch = '7' or ch = '8' or ch = '9';
+end;
+
+function cg_is_int(s: string): boolean;
+var i: integer;
+n: integer;
+begin
+  n := strlen(s);
+  if n = 0 then
+    return false;
+  i := 0;
+  while i < n do
+  begin
+    if not cg_is_digit(substr(s, i, 1)) then
+      return false;
+    i := i + 1;
+  end;
+  return true;
+end;
+
+function cg_is_str_lit(s: string): boolean;
+var n: integer;
+begin
+  n := strlen(s);
+  if n < 2 then
+    return false;
+  return substr(s, 0, 1) = '''' and substr(s, n - 1, 1) = '''';
+end;
+
+function cg_strip_quotes(s: string): string;
+var n: integer;
+begin
+  n := strlen(s);
+  if n < 2 then
+    return s;
+  return substr(s, 1, n - 2);
+end;
+
+begin
+end.

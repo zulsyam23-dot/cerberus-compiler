@@ -1,0 +1,74 @@
+program codegen_state;
+uses codegen_util;
+
+function cg_state_new(): map;
+var s: map;
+begin
+  s := map_new();
+  s := map_set(s, '@label', '0');
+  s := map_set(s, '@next_slot', '0');
+  s := map_set(s, '@result', '0');
+  return s;
+end;
+
+function cg_get_label(state: map): integer;
+begin
+  if map_has(state, '@label') then
+    return cg_parse_int(map_get(state, '@label'));
+  return 0;
+end;
+
+function cg_set_label(state: map; v: integer): map;
+begin
+  return map_set(state, '@label', cg_int_to_str(v));
+end;
+
+function cg_get_next_slot(state: map): integer;
+begin
+  if map_has(state, '@next_slot') then
+    return cg_parse_int(map_get(state, '@next_slot'));
+  return 0;
+end;
+
+function cg_set_next_slot(state: map; v: integer): map;
+begin
+  return map_set(state, '@next_slot', cg_int_to_str(v));
+end;
+
+function cg_get_result(state: map): integer;
+begin
+  if map_has(state, '@result') then
+    return cg_parse_int(map_get(state, '@result'));
+  return 0;
+end;
+
+function cg_set_result(state: map; v: integer): map;
+begin
+  return map_set(state, '@result', cg_int_to_str(v));
+end;
+
+function cg_sym_get(state: map; name: string): map;
+var idx: integer;
+s: string;
+begin
+  if map_has(state, name) then
+  begin
+    s := map_get(state, name);
+    return map_set(state, '@result', s);
+  end;
+  idx := cg_get_next_slot(state);
+  state := cg_set_next_slot(state, idx + 1);
+  state := map_set(state, name, cg_int_to_str(idx));
+  return cg_set_result(state, idx);
+end;
+
+function cg_next_label(state: map): map;
+var v: integer;
+begin
+  v := cg_get_label(state) + 1;
+  state := cg_set_label(state, v);
+  return cg_set_result(state, v);
+end;
+
+begin
+end.

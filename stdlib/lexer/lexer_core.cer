@@ -1,0 +1,56 @@
+program lexer_core;
+
+function lex_version(): string;
+begin
+  return '0.2';
+end;
+
+function lex_available(): boolean;
+begin
+  return true;
+end;
+
+function lex_char_in(ch: string; pool: string): boolean;
+var i: integer;
+n: integer;
+begin
+  i := 0;
+  n := strlen(pool);
+  while i < n do
+  begin
+    if substr(pool, i, 1) = ch then
+      return true;
+    i := i + 1;
+  end;
+  return false;
+end;
+
+function lex_is_space(ch: string): boolean;
+begin
+  return ch = ' ' or ch = '\t' or ch = '\n' or ch = '\r';
+end;
+
+function lex_is_digit(ch: string): boolean;
+begin
+  return lex_char_in(ch, '0123456789');
+end;
+
+function lex_is_alpha(ch: string): boolean;
+begin
+  return lex_char_in(ch, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_');
+end;
+
+function lex_is_alnum(ch: string): boolean;
+begin
+  return lex_is_alpha(ch) or lex_is_digit(ch);
+end;
+
+function lex_is_symbol(ch: string): boolean;
+begin
+  return ch = ';' or ch = ':' or ch = ',' or ch = '.' or ch = '(' or ch = ')' or
+         ch = '[' or ch = ']' or ch = '+' or ch = '-' or ch = '*' or ch = '/' or
+         ch = '=' or ch = '<' or ch = '>';
+end;
+
+begin
+end.

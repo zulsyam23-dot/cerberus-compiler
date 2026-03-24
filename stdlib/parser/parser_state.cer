@@ -1,0 +1,313 @@
+program parser_state;
+uses ast;
+
+function p_int_to_str(v: integer): string;
+var digits: string;
+out: string;
+d: integer;
+q: integer;
+begin
+  if v = 0 then
+    return '0';
+  digits := '0123456789';
+  out := '';
+  while v > 0 do
+  begin
+    q := v / 10;
+    d := v - (q * 10);
+    out := concat(substr(digits, d, 1), out);
+    v := q;
+  end;
+  return out;
+end;
+
+function p_digit_value(ch: string): integer;
+begin
+  if ch = '0' then return 0;
+  if ch = '1' then return 1;
+  if ch = '2' then return 2;
+  if ch = '3' then return 3;
+  if ch = '4' then return 4;
+  if ch = '5' then return 5;
+  if ch = '6' then return 6;
+  if ch = '7' then return 7;
+  if ch = '8' then return 8;
+  if ch = '9' then return 9;
+  return 0;
+end;
+
+function p_parse_int(s: string): integer;
+var i: integer;
+n: integer;
+v: integer;
+begin
+  v := 0;
+  n := strlen(s);
+  i := 0;
+  while i < n do
+  begin
+    v := v * 10 + p_digit_value(substr(s, i, 1));
+    i := i + 1;
+  end;
+  return v;
+end;
+
+function p_state_new(): map;
+var s: map;
+begin
+  s := map_new();
+  s := map_set(s, 'idx', '0');
+  s := map_set(s, 'error', '');
+  s := map_set(s, 'result', '');
+  return s;
+end;
+
+function p_get_idx(state: map): integer;
+begin
+  if map_has(state, 'idx') then
+    return p_parse_int(map_get(state, 'idx'));
+  return 0;
+end;
+
+function p_set_idx(state: map; idx: integer): map;
+begin
+  return map_set(state, 'idx', p_int_to_str(idx));
+end;
+
+function p_get_error(state: map): string;
+begin
+  if map_has(state, 'error') then
+    return map_get(state, 'error');
+  return '';
+end;
+
+function p_set_error(state: map; msg: string): map;
+begin
+  if p_get_error(state) = '' then
+    return map_set(state, 'error', msg);
+  return state;
+end;
+
+function p_error_context(tokens: vector of string; state: map): string;
+var idx: integer;
+tok: string;
+msg: string;
+begin
+  msg := p_get_error(state);
+  idx := p_get_idx(state);
+  tok := p_peek(tokens, state);
+  if tok = '' then
+    return concat(msg, concat(' at end of input (idx ', concat(p_int_to_str(idx), ')')));
+  return concat(msg, concat(' at token ', concat(p_int_to_str(idx), concat(' ', tok))));
+end;
+
+function p_get_result(state: map): string;
+begin
+  if map_has(state, 'result') then
+    return map_get(state, 'result');
+  return '';
+end;
+
+function p_set_result(state: map; res: string): map;
+begin
+  return map_set(state, 'result', res);
+end;
+
+function p_has_error(state: map): boolean;
+begin
+  return p_get_error(state) <> '';
+end;
+
+function p_peek(tokens: vector of string; state: map): string;
+var idx: integer;
+begin
+  idx := p_get_idx(state);
+  if idx >= vector_len(tokens) then
+    return '';
+  return vector_get(tokens, idx);
+end;
+
+function p_next(tokens: vector of string; state: map): map;
+var tok: string;
+idx: integer;
+begin
+  tok := p_peek(tokens, state);
+  if tok = '' then
+  begin
+    state := p_set_error(state, 'unexpected end of input');
+    return p_set_result(state, '');
+  end;
+  idx := p_get_idx(state);
+  idx := idx + 1;
+  state := p_set_idx(state, idx);
+  return p_set_result(state, tok);
+end;
+
+function p_match(tokens: vector of string; state: map; t: string): map;
+begin
+  if p_peek(tokens, state) = t then
+  begin
+    state := p_set_idx(state, p_get_idx(state) + 1);
+    return p_set_result(state, 'true');
+  end;
+  return p_set_result(state, 'false');
+end;
+
+function p_expect(tokens: vector of string; state: map; t: string): map;
+begin
+  state := p_match(tokens, state, t);
+  if p_get_result(state) = 'true' then
+    return state;
+  state := p_set_error(state, concat('expected ', t));
+  return state;
+end;
+
+function p_char_in(ch: string; pool: string): boolean;
+var i: integer;
+n: integer;
+begin
+  i := 0;
+  n := strlen(pool);
+  while i < n do
+  begin
+    if substr(pool, i, 1) = ch then
+      return true;
+    i := i + 1;
+  end;
+  return false;
+end;
+
+function p_is_alpha(ch: string): boolean;
+begin
+  return p_char_in(ch, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_');
+end;
+
+function p_is_digit(ch: string): boolean;
+begin
+  return p_char_in(ch, '0123456789');
+end;
+
+function p_is_alnum(ch: string): boolean;
+begin
+  return p_is_alpha(ch) or p_is_digit(ch);
+end;
+
+function p_is_ident(tok: string): boolean;
+var n: integer;
+i: integer;
+begin
+  if tok = '' then
+    return false;
+  if not p_is_alpha(substr(tok, 0, 1)) then
+    return false;
+  n := strlen(tok);
+  i := 1;
+  while i < n do
+  begin
+    if not p_is_alnum(substr(tok, i, 1)) then
+      return false;
+    i := i + 1;
+  end;
+  if tok = 'program' or tok = 'uses' or tok = 'var' or tok = 'function' or tok = 'procedure' or tok = 'begin' or tok = 'end' or tok = 'if' or tok = 'then' or tok = 'else' or tok = 'while' or tok = 'do' or tok = 'return' then
+    return false;
+  return true;
+end;
+
+function p_is_int(tok: string): boolean;
+var n: integer;
+i: integer;
+begin
+  n := strlen(tok);
+  if n = 0 then
+    return false;
+  i := 0;
+  while i < n do
+  begin
+    if not p_is_digit(substr(tok, i, 1)) then
+      return false;
+    i := i + 1;
+  end;
+  return true;
+end;
+
+function p_is_str(tok: string): boolean;
+var n: integer;
+begin
+  n := strlen(tok);
+  if n < 2 then
+    return false;
+  return substr(tok, 0, 1) = '''' and substr(tok, n - 1, 1) = '''';
+end;
+
+function p_split_top(s: string; sep: string): vector of string;
+var out: vector of string;
+cur: string;
+n: integer;
+i: integer;
+ch: string;
+depth: integer;
+in_str: boolean;
+begin
+  out := vector_new_str();
+  if s = '' then
+    return out;
+  cur := '';
+  n := strlen(s);
+  i := 0;
+  depth := 0;
+  in_str := false;
+  while i < n do
+  begin
+    ch := substr(s, i, 1);
+    if in_str then
+    begin
+      if ch = '''' then
+        in_str := false;
+      cur := concat(cur, ch);
+    end
+    else
+    begin
+      if ch = '''' then
+      begin
+        in_str := true;
+        cur := concat(cur, ch);
+      end
+      else if ch = '{' or ch = '[' or ch = '(' then
+      begin
+        depth := depth + 1;
+        cur := concat(cur, ch);
+      end
+      else if ch = '}' or ch = ']' or ch = ')' then
+      begin
+        depth := depth - 1;
+        cur := concat(cur, ch);
+      end
+      else if depth = 0 and ch = sep then
+      begin
+        out := vector_push(out, cur);
+        cur := '';
+      end
+      else
+      begin
+        cur := concat(cur, ch);
+      end;
+    end;
+    i := i + 1;
+  end;
+  out := vector_push(out, cur);
+  return out;
+end;
+
+function p_extract_list(node: string): vector of string;
+var n: integer;
+body: string;
+begin
+  n := strlen(node);
+  if n < 3 then
+    return vector_new_str();
+  body := substr(node, 2, n - 3);
+  return p_split_top(body, ',');
+end;
+
+begin
+end.

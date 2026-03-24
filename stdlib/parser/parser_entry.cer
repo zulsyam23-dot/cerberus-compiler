@@ -1,0 +1,69 @@
+program parser_entry;
+uses lexer, ast, parser_state, parser_expr, parser_stmt;
+
+function parse_tokens(tokens: vector of string): string;
+var name: string;
+block: string;
+uses_node: string;
+mods: vector of string;
+i: integer;
+n: integer;
+tok: string;
+state: map;
+begin
+  state := p_state_new();
+  i := 0;
+  n := vector_len(tokens);
+  while i < n do
+  begin
+    tok := vector_get(tokens, i);
+    if strlen(tok) >= 6 then
+    begin
+      if substr(tok, 0, 6) = 'ERROR:' then
+        return tok;
+    end;
+    i := i + 1;
+  end;
+  state := p_expect(tokens, state, 'program');
+  if p_get_result(state) <> 'true' then
+    return concat('ERROR: ', p_error_context(tokens, state));
+  state := p_next(tokens, state);
+  name := p_get_result(state);
+  if not p_is_ident(name) then
+  begin
+    state := p_set_error(state, 'expected program name');
+    return concat('ERROR: ', p_error_context(tokens, state));
+  end;
+  state := p_expect(tokens, state, ';');
+  mods := vector_new_str();
+  if p_peek(tokens, state) = 'uses' then
+  begin
+    state := p_next(tokens, state);
+    state := parse_ident_list(tokens, state);
+    mods := p_split_top(p_get_result(state), ',');
+    state := p_expect(tokens, state, ';');
+  end;
+  uses_node := ast_uses(mods);
+  state := parse_block(tokens, state);
+  block := p_get_result(state);
+  state := p_expect(tokens, state, '.');
+  if p_has_error(state) then
+    return concat('ERROR: ', p_error_context(tokens, state));
+  return ast_program(name, uses_node, block);
+end;
+
+function parse_string(src: string): string;
+var tokens: vector of string;
+begin
+  if env_has('CERBERUS_DEBUG_PROGRESS') then
+    writeln('PROGRESS: parse_string enter');
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln(concat('DEBUG: lex_tokenize len=', p_int_to_str(strlen(src))));
+  tokens := lex_tokenize(src);
+  if env_has('CERBERUS_DEBUG_AST') then
+    writeln(concat('DEBUG: tokens len=', p_int_to_str(vector_len(tokens))));
+  return parse_tokens(tokens);
+end;
+
+begin
+end.

@@ -1,0 +1,378 @@
+program typecheck_expr;
+uses typecheck_core, typecheck_util, typecheck_types;
+
+function tc_expr_type(state: map; expr: string): map;
+var kind: string;
+body: string;
+parts: vector of string;
+op: string;
+left: string;
+right: string;
+tl: string;
+tr: string;
+name: string;
+args: vector of string;
+params: vector of string;
+sig: string;
+ret: string;
+t: string;
+i: integer;
+n: integer;
+expr_head: string;
+begin
+  kind := tc_kind(expr);
+  if kind = 'EInt' then
+    return tc_set_result(state, 'int');
+  if kind = 'EBool' then
+    return tc_set_result(state, 'bool');
+  if kind = 'EStr' then
+    return tc_set_result(state, 'string');
+  if kind = 'EVar' then
+  begin
+    body := tc_extract(expr);
+    if map_has(state, body) then
+      return tc_set_result(state, map_get(state, body));
+    state := tc_set_error(state, concat('unknown variable ', body));
+    return tc_set_result(state, 'error');
+  end;
+  if kind = 'EUnary' then
+  begin
+    body := tc_extract(expr);
+    parts := tc_split_top(body, ';');
+    op := vector_get(parts, 0);
+    left := vector_get(parts, 1);
+    state := tc_expr_type(state, left);
+    tl := tc_get_result(state);
+    if op = '-' then
+    begin
+      if tl <> 'int' then
+        state := tc_set_error(state, 'unary - expects int');
+      return tc_set_result(state, 'int');
+    end
+    else if op = 'not' then
+    begin
+      if tl <> 'bool' then
+        state := tc_set_error(state, 'not expects bool');
+      return tc_set_result(state, 'bool');
+    end;
+  end;
+  if kind = 'EBin' then
+  begin
+    body := tc_extract(expr);
+    parts := tc_split_top(body, ';');
+    op := vector_get(parts, 0);
+    left := vector_get(parts, 1);
+    right := vector_get(parts, 2);
+    state := tc_expr_type(state, left);
+    tl := tc_get_result(state);
+    state := tc_expr_type(state, right);
+    tr := tc_get_result(state);
+    if op = '+' or op = '-' or op = '*' or op = '/' then
+    begin
+      if tl <> 'int' or tr <> 'int' then
+        state := tc_set_error(state, 'arithmetic expects int');
+      return tc_set_result(state, 'int');
+    end;
+    if op = 'and' or op = 'or' then
+    begin
+      if tl <> 'bool' or tr <> 'bool' then
+        state := tc_set_error(state, 'boolean op expects bool');
+      return tc_set_result(state, 'bool');
+    end;
+    if op = '=' or op = '<>' or op = '<' or op = '<=' or op = '>' or op = '>=' then
+    begin
+      if tl <> tr then
+        state := tc_set_error(state, 'comparison type mismatch');
+      return tc_set_result(state, 'bool');
+    end;
+  end;
+  if kind = 'ECall' then
+  begin
+    body := tc_extract(expr);
+    parts := tc_split_top(body, ';');
+    name := vector_get(parts, 0);
+    args := tc_extract_list(vector_get(parts, 1));
+
+    if name = 'strlen' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'strlen expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if t <> 'string' then state := tc_set_error(state, 'strlen expects string');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'concat' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'concat expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'concat expects string');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'concat expects string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'substr' then
+    begin
+      if vector_len(args) <> 3 then state := tc_set_error(state, 'substr expects 3 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'substr expects string');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'substr expects int');
+      state := tc_expr_type(state, vector_get(args, 2));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'substr expects int');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'replace' then
+    begin
+      if vector_len(args) <> 3 then state := tc_set_error(state, 'replace expects 3 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'replace expects string');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'replace expects string');
+      state := tc_expr_type(state, vector_get(args, 2));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'replace expects string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'arg_count' then
+      return tc_set_result(state, 'int');
+    if name = 'arg' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'arg expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'arg expects int');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'readfile' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'readfile expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'readfile expects string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'env_get' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'env_get expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'env_get expects string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'env_has' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'env_has expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'env_has expects string');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'cwd' then
+    begin
+      if vector_len(args) <> 0 then state := tc_set_error(state, 'cwd expects 0 args');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'fs_exists' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'fs_exists expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'fs_exists expects string');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'fs_listdir' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'fs_listdir expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'fs_listdir expects string');
+      return tc_set_result(state, tc_type_vector('string'));
+    end;
+    if name = 'path_join' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'path_join expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'path_join expects string');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'path_join expects string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'now_timestamp' then
+      return tc_set_result(state, 'int');
+
+    if name = 'vector_new_int' then return tc_set_result(state, tc_type_vector('int'));
+    if name = 'vector_new_bool' then return tc_set_result(state, tc_type_vector('bool'));
+    if name = 'vector_new_str' then return tc_set_result(state, tc_type_vector('string'));
+    if name = 'vector_new' then return tc_set_result(state, tc_type_vector('int'));
+
+    if name = 'vector_len' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'vector_len expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_len expects vector');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'vector_get' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'vector_get expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_get expects vector');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'vector_get expects int index');
+      return tc_set_result(state, tc_vec_inner(t));
+    end;
+    if name = 'vector_set' then
+    begin
+      if vector_len(args) <> 3 then state := tc_set_error(state, 'vector_set expects 3 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_set expects vector');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'vector_set expects int index');
+      state := tc_expr_type(state, vector_get(args, 2));
+      if tc_get_result(state) <> tc_vec_inner(t) then state := tc_set_error(state, 'vector_set type mismatch');
+      return tc_set_result(state, t);
+    end;
+    if name = 'vector_push' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'vector_push expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_push expects vector');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> tc_vec_inner(t) then state := tc_set_error(state, 'vector_push type mismatch');
+      return tc_set_result(state, t);
+    end;
+    if name = 'vector_remove' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'vector_remove expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_remove expects vector');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'vector_remove expects int index');
+      return tc_set_result(state, t);
+    end;
+    if name = 'vector_last' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'vector_last expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_last expects vector');
+      return tc_set_result(state, tc_vec_inner(t));
+    end;
+    if name = 'vector_pop' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'vector_pop expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_pop expects vector');
+      return tc_set_result(state, t);
+    end;
+    if name = 'map_new' then
+      return tc_set_result(state, 'map<string,string>');
+    if name = 'map_len' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'map_len expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'map<string,string>' then state := tc_set_error(state, 'map_len expects map');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'map_set' then
+    begin
+      if vector_len(args) <> 3 then state := tc_set_error(state, 'map_set expects 3 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'map<string,string>' then state := tc_set_error(state, 'map_set expects map');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'map_set expects string key');
+      state := tc_expr_type(state, vector_get(args, 2));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'map_set expects string value');
+      return tc_set_result(state, 'map<string,string>');
+    end;
+    if name = 'map_get' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'map_get expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'map<string,string>' then state := tc_set_error(state, 'map_get expects map');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'map_get expects string key');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'map_has' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'map_has expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'map<string,string>' then state := tc_set_error(state, 'map_has expects map');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'map_has expects string key');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'map_remove' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'map_remove expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'map<string,string>' then state := tc_set_error(state, 'map_remove expects map');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'map_remove expects string key');
+      return tc_set_result(state, 'map<string,string>');
+    end;
+    if name = 'string_clear' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'string_clear expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'string_clear expects string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'vector_clear' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'vector_clear expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      t := tc_get_result(state);
+      if not tc_is_vector(t) then state := tc_set_error(state, 'vector_clear expects vector');
+      return tc_set_result(state, t);
+    end;
+    if name = 'map_clear' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'map_clear expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'map<string,string>' then state := tc_set_error(state, 'map_clear expects map');
+      return tc_set_result(state, 'map<string,string>');
+    end;
+
+    if map_has(state, tc_fn_key(name)) then
+    begin
+      sig := map_get(state, tc_fn_key(name));
+      parts := tc_split_top(sig, '|');
+      ret := vector_get(parts, 0);
+      params := tc_split_top(vector_get(parts, 1), ';');
+      if vector_len(params) <> vector_len(args) then
+      begin
+        state := tc_set_error(state, concat('invalid arg count for ', name));
+        return tc_set_result(state, 'error');
+      end;
+      i := 0;
+      n := vector_len(args);
+      while i < n do
+      begin
+        state := tc_expr_type(state, vector_get(args, i));
+        if tc_get_result(state) <> vector_get(params, i) then
+          state := tc_set_error(state, concat('arg type mismatch for ', name));
+        i := i + 1;
+      end;
+      if ret = 'void' then
+      begin
+        state := tc_set_error(state, concat('procedure used as expression: ', name));
+        return tc_set_result(state, 'error');
+      end;
+      return tc_set_result(state, ret);
+    end;
+    state := tc_set_error(state, concat('unknown function ', name));
+    return tc_set_result(state, 'error');
+  end;
+
+  if strlen(expr) > 60 then
+    expr_head := substr(expr, 0, 60)
+  else
+    expr_head := expr;
+  state := tc_set_error(state, concat('unknown expression: ', concat(kind, concat(' in ', expr_head))));
+  return tc_set_result(state, 'error');
+end;
+
+begin
+end.
+

@@ -1,0 +1,15 @@
+program parser;
+uses lexer, ast, parser_state, parser_expr, parser_stmt, parser_entry;
+
+function parse_version(): string;
+begin
+  return '0.3';
+end;
+
+function parse_available(): boolean;
+begin
+  return true;
+end;
+
+begin
+end.

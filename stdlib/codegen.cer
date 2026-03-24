@@ -1,0 +1,15 @@
+program codegen;
+uses codegen_impl;
+
+function codegen_version(): string;
+begin
+  return '0.3';
+end;
+
+function codegen_available(): boolean;
+begin
+  return true;
+end;
+
+begin
+end.
