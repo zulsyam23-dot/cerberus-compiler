@@ -2,14 +2,17 @@ program runtime;
 uses dispatch, io;
 var script_path: string;
 err: string;
+strict_mode: boolean;
 function runtime_usage(): string;
 begin
-  return 'usage: runtime <program.cer>';
+  return 'usage: runtime [--strict] <program.cer|toolchain.pkg>';
 end;
-function runtime_run(path: string): string;
+function runtime_run(path: string; strict: boolean): string;
 begin
   if not rt_io_exists(path) then
     return concat('ERROR: script not found: ', path);
+  if strict then
+    return runtime_run_file_strict(path);
   return runtime_run_file(path);
 end;
 begin
@@ -17,6 +20,7 @@ begin
   begin
     writeln(runtime_usage());
     writeln('format: opcode script (newline-separated, ; optional)');
+    writeln('or packaged artifact: cerberus_toolchain_v1 + vm_text_script');
     writeln('example: const_int 1');
     writeln('         const_int 2');
     writeln('         add');
@@ -24,8 +28,20 @@ begin
     writeln('         halt');
     return;
   end;
-  script_path := arg(0);
-  err := runtime_run(script_path);
+  strict_mode := false;
+  if arg(0) = '--strict' then
+  begin
+    strict_mode := true;
+    if arg_count() < 2 then
+    begin
+      writeln(runtime_usage());
+      return;
+    end;
+    script_path := arg(1);
+  end
+  else
+    script_path := arg(0);
+  err := runtime_run(script_path, strict_mode);
   if err <> '' then
     writeln(err);
 end.

@@ -1,5 +1,5 @@
 program vm_runtime_mod;
-uses builder, config, dispatch, helpers, instr_builder, instr_collections, instr_control, instr_core, instr_env_fs, instr_io, instr_strings, instr_time_log, validate, tests;
+uses builder, config, dispatch, helpers, instr_builder, instr_collections, instr_control, instr_core, instr_env_fs, instr_io, instr_strings, instr_time_log, toolchain, validate, tests;
 function vm_runtime_available(): boolean;
 begin
   return true;
@@ -16,9 +16,34 @@ function vm_runtime_run_file(path: string): string;
 begin
   return runtime_run_file(path);
 end;
+
+function vm_runtime_run_file_strict(path: string): string;
+begin
+  return runtime_run_file_strict(path);
+end;
 function vm_runtime_default_steps(): integer;
 begin
   return vm_limit_default_steps();
+end;
+
+function vm_runtime_toolchain_pack(script: string; entry: string; limit_steps: string; limit_stack: string; limit_call: string): string;
+begin
+  return rt_toolchain_pack_script(script, entry, limit_steps, limit_stack, limit_call);
+end;
+
+function vm_runtime_toolchain_resolve(src: string): string;
+begin
+  return rt_toolchain_resolve(src);
+end;
+
+function vm_runtime_toolchain_resolve_strict(src: string): string;
+begin
+  return rt_toolchain_resolve_strict(src);
+end;
+
+function vm_runtime_toolchain_is_package(src: string): boolean;
+begin
+  return rt_toolchain_is_package(src);
 end;
 
 function vm_runtime_self_test(): boolean;

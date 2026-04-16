@@ -125,7 +125,8 @@ pub(super) fn dispatch(vm: &mut Vm) -> Result<Step, CompileError> {
         | Instr::Cwd
         | Instr::PathJoin
         | Instr::FsExists
-        | Instr::FsListDir => vm.exec_env_fs(instr).map(|_| Step::Continue),
+        | Instr::FsListDir
+        | Instr::OsExec => vm.exec_env_fs(instr).map(|_| Step::Continue),
         Instr::NowTimestamp | Instr::SleepMs | Instr::LogStr | Instr::LogInt | Instr::LogBool => {
             vm.exec_time_log(instr).map(|_| Step::Continue)
         }

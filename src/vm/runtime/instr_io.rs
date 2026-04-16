@@ -31,7 +31,15 @@ impl Vm {
                     Value::Str(s) => s,
                     _ => return Err(CompileError::new_simple("writefile: expected string path")),
                 };
-                std::fs::write(&path, content)
+                let path_buf = std::path::PathBuf::from(&path);
+                if let Some(parent) = path_buf.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        std::fs::create_dir_all(parent).map_err(|e| {
+                            CompileError::new_simple(format!("writefile failed: {e}"))
+                        })?;
+                    }
+                }
+                std::fs::write(&path_buf, content)
                     .map_err(|e| CompileError::new_simple(format!("writefile failed: {e}")))?;
             }
             Instr::ArgCount => {

@@ -107,6 +107,13 @@ pub(super) fn register_core(env: &mut TypeEnv) {
         },
     );
     env.funcs.insert(
+        "os_exec".to_string(),
+        FuncSig {
+            params: vec![Type::String],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
         "now_timestamp".to_string(),
         FuncSig {
             params: Vec::new(),

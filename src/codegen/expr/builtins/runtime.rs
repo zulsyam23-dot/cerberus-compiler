@@ -54,6 +54,14 @@ pub fn try_emit(cg: &mut Codegen, call: &CallExpr) -> Result<bool, CompileError>
             cg.code.push(Instr::FsListDir);
             Ok(true)
         }
+        "os_exec" => {
+            if call.args.len() != 1 {
+                return Err(CompileError::new_simple("os_exec expects 1 argument"));
+            }
+            emit_args(cg, &call.args)?;
+            cg.code.push(Instr::OsExec);
+            Ok(true)
+        }
         "now_timestamp" => {
             if !call.args.is_empty() {
                 return Err(CompileError::new_simple(

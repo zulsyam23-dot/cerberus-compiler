@@ -1,16 +1,36 @@
 program compiler;
-uses lexer, parser, typecheck, codegen, ast;
+uses lexer, parser, typecheck, codegen, ast, vm;
 
 var src_path, out_path, src, ast, err: string;
 no_tc: boolean;
+package_mode: boolean;
 arg0: string;
 arg_idx: integer;
+pkg_entry: string;
+pkg_limit_steps: string;
+pkg_limit_stack: string;
+pkg_limit_call: string;
+pkg_idx: integer;
+pkg_opt: string;
+parse_opts: boolean;
 
 function starts_with(s: string; prefix: string): boolean;
 begin
   if strlen(s) < strlen(prefix) then
     return false;
   return substr(s, 0, strlen(prefix)) = prefix;
+end;
+
+function c_target_root(): string;
+var root: string;
+begin
+  root := '.cerberus_target';
+  if env_has('CERBERUS_TARGET_DIR') then
+  begin
+    if env_get('CERBERUS_TARGET_DIR') <> '' then
+      root := env_get('CERBERUS_TARGET_DIR');
+  end;
+  return root;
 end;
 
 function c_extract(node: string): string;
@@ -206,6 +226,84 @@ begin
   if last = 2 and substr(path, 1, 1) = ':' then
     return substr(path, 0, 3);
   return substr(path, 0, last);
+end;
+
+function c_basename(path: string): string;
+var i: integer;
+n: integer;
+last: integer;
+ch: string;
+sep: string;
+begin
+  n := strlen(path);
+  last := -1;
+  sep := substr(path_join('a', 'b'), 1, 1);
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(path, i, 1);
+    if ch = '/' or ch = sep then
+      last := i;
+    i := i + 1;
+  end;
+  if last < 0 then
+    return path;
+  if last + 1 >= n then
+    return '';
+  return substr(path, last + 1, n - last - 1);
+end;
+
+function c_stem(path: string): string;
+var name: string;
+i: integer;
+n: integer;
+last_dot: integer;
+ch: string;
+begin
+  name := c_basename(path);
+  n := strlen(name);
+  if n = 0 then
+    return 'output';
+  last_dot := -1;
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(name, i, 1);
+    if ch = '.' then
+      last_dot := i;
+    i := i + 1;
+  end;
+  if last_dot <= 0 then
+    return name;
+  return substr(name, 0, last_dot);
+end;
+
+function c_default_output_for(src: string; is_package: boolean): string;
+var root: string;
+stem: string;
+begin
+  root := c_target_root();
+  stem := c_stem(src);
+  if is_package then
+    return path_join(path_join(root, 'package'), concat(stem, '.crt'));
+  return path_join(path_join(root, 'debug'), concat(stem, '.cerb'));
+end;
+
+procedure c_write_build_meta(kind: string; source_path: string; artifact_path: string);
+var root: string;
+meta_path: string;
+payload: string;
+ts: integer;
+begin
+  root := c_target_root();
+  meta_path := path_join(path_join(root, 'meta'), concat(concat(c_stem(source_path), '.'), concat(kind, '.txt')));
+  ts := now_timestamp();
+  payload := concat('kind=', kind);
+  payload := concat(payload, concat(';source=', source_path));
+  payload := concat(payload, concat(';artifact=', artifact_path));
+  payload := concat(payload, concat(';timestamp=', p_int_to_str(ts)));
+  payload := concat(payload, ';toolchain=cerberus_selfhost');
+  writefile(meta_path, payload);
 end;
 
 function c_resolve_module(base_dir: string; name: string): string;
@@ -618,49 +716,151 @@ begin
     writeln('DEBUG: compiler entry');
   if arg_count() < 1 then
   begin
-    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
+    writeln('usage: compiler [--no-typecheck|--bootstrap] [--package] <input> [output]');
+    writeln('       package opts: [--entry <label>] [--limit-steps <n>] [--limit-stack <n>] [--limit-call <n>]');
+    writeln('       default output root: .cerberus_target (or CERBERUS_TARGET_DIR)');
     writeln('   or: compiler no-typecheck <input> [output]');
+    writeln('   or: compiler package <vm_script> [output.crt] [package opts]');
     return;
   end;
 
   no_tc := false;
+  package_mode := false;
   arg_idx := 0;
   arg0 := arg(0);
   if env_has('CERBERUS_DEBUG_AST') then
     writeln(concat('DEBUG: arg0=', arg0));
   if arg0 = '--help' or arg0 = '-h' or arg0 = 'help' then
   begin
-    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
+    writeln('usage: compiler [--no-typecheck|--bootstrap] [--package] <input> [output]');
+    writeln('       package opts: [--entry <label>] [--limit-steps <n>] [--limit-stack <n>] [--limit-call <n>]');
+    writeln('       default output root: .cerberus_target (or CERBERUS_TARGET_DIR)');
     writeln('   or: compiler no-typecheck <input> [output]');
+    writeln('   or: compiler package <vm_script> [output.crt] [package opts]');
     return;
   end;
-  if arg0 = 'no-typecheck' or arg0 = '--no-typecheck' or arg0 = '--bootstrap' then
+  parse_opts := true;
+  while arg_idx < arg_count() and parse_opts do
   begin
-    no_tc := true;
-    arg_idx := 1;
-  end
-  else if starts_with(arg0, '--') then
+    arg0 := arg(arg_idx);
+    if arg0 = 'no-typecheck' or arg0 = '--no-typecheck' or arg0 = '--bootstrap' then
+    begin
+      no_tc := true;
+      arg_idx := arg_idx + 1;
+    end
+    else if arg0 = 'package' or arg0 = '--package' or arg0 = '--toolchain-package' then
+    begin
+      package_mode := true;
+      arg_idx := arg_idx + 1;
+    end
+    else
+      parse_opts := false;
+  end;
+  if arg_idx < arg_count() then
   begin
-    writeln(concat('ERROR: unknown option ', arg0));
-    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
-    return;
+    if starts_with(arg(arg_idx), '--') then
+    begin
+      writeln(concat('ERROR: unknown option ', arg(arg_idx)));
+      writeln('usage: compiler [--no-typecheck|--bootstrap] [--package] <input> [output]');
+      writeln('       package opts: [--entry <label>] [--limit-steps <n>] [--limit-stack <n>] [--limit-call <n>]');
+      writeln('       default output root: .cerberus_target (or CERBERUS_TARGET_DIR)');
+      return;
+    end;
   end;
 
   if arg_count() <= arg_idx then
   begin
-    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
+    writeln('usage: compiler [--no-typecheck|--bootstrap] [--package] <input> [output]');
+    writeln('       package opts: [--entry <label>] [--limit-steps <n>] [--limit-stack <n>] [--limit-call <n>]');
+    writeln('       default output root: .cerberus_target (or CERBERUS_TARGET_DIR)');
     writeln('   or: compiler no-typecheck <input> [output]');
+    writeln('   or: compiler package <vm_script> [output.crt] [package opts]');
     return;
   end;
 
   src_path := arg(arg_idx);
-  if arg_count() > arg_idx + 1 then
-    out_path := arg(arg_idx + 1)
-  else
-    out_path := 'out.cerb';
-  if arg_count() > arg_idx + 2 then
+  pkg_entry := '';
+  pkg_limit_steps := '';
+  pkg_limit_stack := '';
+  pkg_limit_call := '';
+  if package_mode then
   begin
-    writeln(concat('WARN: extra arguments ignored, count=', p_int_to_str(arg_count() - arg_idx - 2)));
+    if arg_count() > arg_idx + 1 then
+    begin
+      if starts_with(arg(arg_idx + 1), '--') then
+      begin
+        out_path := c_default_output_for(src_path, true);
+        pkg_idx := arg_idx + 1;
+      end
+      else
+      begin
+        out_path := arg(arg_idx + 1);
+        pkg_idx := arg_idx + 2;
+      end;
+    end
+    else
+    begin
+      out_path := c_default_output_for(src_path, true);
+      pkg_idx := arg_idx + 1;
+    end;
+    while pkg_idx < arg_count() do
+    begin
+      pkg_opt := arg(pkg_idx);
+      if pkg_opt = '--entry' then
+      begin
+        if pkg_idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --entry requires value');
+          return;
+        end;
+        pkg_entry := arg(pkg_idx + 1);
+        pkg_idx := pkg_idx + 2;
+      end
+      else if pkg_opt = '--limit-steps' then
+      begin
+        if pkg_idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-steps requires value');
+          return;
+        end;
+        pkg_limit_steps := arg(pkg_idx + 1);
+        pkg_idx := pkg_idx + 2;
+      end
+      else if pkg_opt = '--limit-stack' then
+      begin
+        if pkg_idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-stack requires value');
+          return;
+        end;
+        pkg_limit_stack := arg(pkg_idx + 1);
+        pkg_idx := pkg_idx + 2;
+      end
+      else if pkg_opt = '--limit-call' then
+      begin
+        if pkg_idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-call requires value');
+          return;
+        end;
+        pkg_limit_call := arg(pkg_idx + 1);
+        pkg_idx := pkg_idx + 2;
+      end
+      else
+      begin
+        writeln(concat('ERROR: unknown package option ', pkg_opt));
+        return;
+      end;
+    end;
+  end
+  else
+  begin
+    if arg_count() > arg_idx + 1 then
+      out_path := arg(arg_idx + 1)
+    else
+      out_path := c_default_output_for(src_path, false);
+    if arg_count() > arg_idx + 2 then
+      writeln(concat('WARN: extra arguments ignored, count=', p_int_to_str(arg_count() - arg_idx - 2)));
   end;
 
   if env_has('CERBERUS_DEBUG_AST') then
@@ -672,6 +872,32 @@ begin
     writeln('PROGRESS: readfile');
   if env_has('CERBERUS_DEBUG_AST') then
     writeln('DEBUG: readfile ok');
+  if package_mode then
+  begin
+    err := vm_validate_script(src);
+    if err <> '' then
+    begin
+      writeln(concat('ERROR: invalid vm script for package: ', err));
+      return;
+    end;
+    src := vm_toolchain_pack(src, pkg_entry, pkg_limit_steps, pkg_limit_stack, pkg_limit_call);
+    ast := vm_toolchain_resolve_strict(src);
+    if starts_with(ast, 'ERROR:') then
+    begin
+      writeln(ast);
+      return;
+    end;
+    err := vm_validate_script(ast);
+    if err <> '' then
+    begin
+      writeln(concat('ERROR: packaged script invalid: ', err));
+      return;
+    end;
+    writefile(out_path, src);
+    c_write_build_meta('package', src_path, out_path);
+    writeln(concat('ok: wrote package ', out_path));
+    return;
+  end;
   ast := parse_string(src);
   if env_has('CERBERUS_DEBUG_PROGRESS') then
     writeln('PROGRESS: parsed');
@@ -738,6 +964,7 @@ begin
   if env_has('CERBERUS_DEBUG_PROGRESS') then
     writeln('PROGRESS: codegen start');
   codegen_emit_to(ast, out_path);
+  c_write_build_meta('bytecode', src_path, out_path);
   if env_has('CERBERUS_DEBUG_PROGRESS') then
     writeln('PROGRESS: codegen done');
   if env_has('CERBERUS_DEBUG_AST') then

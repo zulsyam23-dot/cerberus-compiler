@@ -10,7 +10,8 @@ function tc_builtin_is_runtime(name: string): boolean;
 begin
   return name = 'arg_count' or name = 'arg' or name = 'readfile' or name = 'writefile' or
          name = 'env_get' or name = 'env_has' or name = 'cwd' or name = 'path_join' or
-         name = 'fs_exists' or name = 'fs_listdir' or name = 'now_timestamp';
+         name = 'fs_exists' or name = 'fs_listdir' or name = 'now_timestamp' or
+         name = 'os_exec';
 end;
 
 function tc_builtin_is_runtime_proc(name: string): boolean;

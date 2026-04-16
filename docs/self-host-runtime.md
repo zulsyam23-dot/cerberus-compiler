@@ -1,96 +1,101 @@
-# Cerberus Self-Hosted Runtime (Stage 0)
+# Cerberus Self-Host Runtime: Status Nyata
 
-Dokumen ini menjelaskan runtime Cerberus-native awal yang ditulis dalam bahasa Cerberus, sebagai langkah menuju runtime yang benar-benar lepas dari Rust.
+Dokumen ini menjelaskan kondisi runtime dan compiler self-host Cerberus saat ini, dengan fokus pada batas kemampuan dan gap menuju toolchain yang benar-benar mandiri.
 
-## File Utama
+## Ringkasan Eksekutif
+
+Cerberus **sudah self-hosted di level compiler pipeline** (lexer, parser, typecheck, codegen ditulis dalam Cerberus), tetapi **belum standalone penuh** karena eksekusi masih membutuhkan host Rust (`cerberus-compiler`) sebagai VM engine dan orchestrator CLI.
+
+## Peta Modul Runtime Saat Ini
 
 - `stdlib/runtime/runtime.cer`
-  - entrypoint runtime
-  - menerima argumen path script VM
-- `stdlib/runtime/vm/runtime_vm.cer`
-  - facade module untuk VM runtime
-- `stdlib/runtime/vm/runtime_vm_text.cer`
-  - utility parsing/lexing script opcode teks
-- `stdlib/runtime/vm/runtime_vm_value.cer`
-  - value envelope typed `v1|kind|len|payload` (kompatibel legacy `i:`, `b:`, `s:`)
-- `stdlib/runtime/vm/runtime_vm_validate.cer`
-  - validasi statis directive/opcode/arg/target sebelum eksekusi
-- `stdlib/runtime/vm/runtime/runtime_vm_exec.cer`
-  - interpreter opcode tekstual dan loop eksekusi VM
-- `stdlib/runtime/vm/runtime_io.cer`
-  - wrapper I/O host (`readfile`, `writefile`, `fs_exists`, `cwd`)
+  - entrypoint runtime mode script teks.
+- `stdlib/vm/mod.cer`
+  - facade VM untuk stdlib.
+- `stdlib/vm/runtime/mod.cer`
+  - agregator runtime VM (`builder`, `dispatch`, `validate`, `instr_*`, `tests`).
+- `stdlib/vm/runtime/validate.cer`
+  - preflight validasi directive/opcode/arg/target.
+- `stdlib/vm/runtime/dispatch.cer`
+  - loop dispatch instruksi.
+- `stdlib/vm/runtime/instr_*.cer`
+  - implementasi kategori instruksi (core, io, collections, control, env/fs, time/log).
+- `stdlib/vm/runtime/tests.cer`
+  - self-test runtime level script.
 
-## Format Script VM
+## Kontrak Script Runtime
 
-Untuk tahap ini, script ditulis sebagai opcode teks dengan separator:
+- Directive:
+  - `@cerberus_vm 1`
+  - `@entry <label|ip>`
+  - `@limit_steps <n>`
+  - `@limit_stack <n>`
+  - `@limit_call <n>`
+- Separator instruksi:
+  - newline (direkomendasikan)
+  - `;` (kompatibilitas)
+- Inline comment: `# ...`
+- Validasi dilakukan sebelum eksekusi (`rt_validate_text`).
 
-- newline (direkomendasikan)
-- atau `;` (kompatibilitas)
+## Kontrak Artifact Toolchain v1 (Baru)
 
-Format profesional (disarankan):
+Runtime sekarang juga menerima paket artifact versioned (bukan hanya script polos):
 
-- `@cerberus_vm 1;`
-- `@entry <label|ip>;`
-- `@limit_steps <n>;` (opsional)
-- `@limit_stack <n>;` (opsional)
-- `@limit_call <n>;` (opsional)
-- opcode runtime (`label`, `const_int`, dst)
+- magic: `cerberus_toolchain_v1`
+- format: `vm_text_script`
+- marker payload: `::code::`
+- header metadata opsional:
+  - `entry=<label|ip>`
+  - `limit_steps=<n>`
+  - `limit_stack=<n>`
+  - `limit_call=<n>`
 
 Contoh:
 
-`@cerberus_vm 1
-@entry main
-label main
-locals 2
-const_int 40
-store 0
-const_int 2
-store 1
-load 0
-load 1
-add
-println
-halt`
+`cerberus_toolchain_v1;vm_text_script;entry=main;limit_steps=100000::code::label main; const_int 1; println; halt;`
 
-Catatan:
+Runtime akan me-resolve artifact ini menjadi script VM valid (`@cerberus_vm 1` + directive runtime) sebelum eksekusi.
 
-- Directive wajib berada di bagian awal file (sebelum opcode pertama).
-- Runtime lama tanpa directive tetap didukung untuk kompatibilitas.
-- Inline comment didukung dengan prefix `#`.
-- String literal aman berisi `;` tanpa memecah instruksi.
+## Launcher Tooling (Baru)
 
-## Opcode yang Tersedia (Stage 0)
+Untuk mengurangi ketergantungan langsung pada host workflow, stdlib sekarang punya launcher:
 
-- Core: `nop`, `halt`, `locals`, `const_int`, `const_bool`, `const_str`, `load`, `store`
-- Arithmetic: `add`, `sub`, `mul`, `div`, `neg`
-- Compare/logic: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `and`, `or`, `not`
-- Control: `label`, `jump`, `jump_if_false`, `call`, `ret`, `ret_val`
-- I/O: `println`, `readfile`, `writefile`
-- Runtime directives: `limit_steps`, `limit_stack`, `limit_call`
-- Preflight validation: struktur script, arg opcode, duplicate label, unresolved target
+- `stdlib/toolchain.cer`
+  - `pack <vm_script.cer> [out.crt]`
+  - `validate <vm_script.cer|out.crt>`
+  - `run <vm_script.cer|out.crt>`
+  - `resolve <out.crt> [resolved.cer]`
+  - `selftest`
 
-## Cara Menjalankan
+Compiler juga mendukung mode package:
 
-1. Compile runtime Cerberus:
-   - `cargo run -- stdlib/runtime/runtime.cer out_runtime.cerb`
-2. Jalankan runtime dengan script:
-   - `cargo run -- run out_runtime.cerb path/to/script_vm.cer`
+- `compiler --package <vm_script.cer> [out.crt]`
 
-Catatan:
-- Folder `examples/` sudah dihapus karena tidak dipakai build/test.
-- Gunakan script VM milik proyek kamu sendiri (`path/to/script_vm.cer`).
+## Kelebihan Runtime Saat Ini
 
-## Catatan Stage 0
+- Ada lapisan validasi script sebelum jalan.
+- Ada limit eksekusi untuk mencegah loop tak terbatas atau stack abuse.
+- Struktur runtime dipisah per domain instruksi, tidak lagi monolitik.
+- Error runtime sudah membawa konteks yang cukup untuk debugging dasar.
+- Runtime self-test tersedia di stdlib (`vm_runtime_tests_run`).
 
-- Ini sudah runtime yang ditulis di Cerberus, namun masih dibootstrap via VM Rust.
-- Parsing script mendukung newline + `;`, namun masih berbasis opcode teks (belum bytecode biner native).
-- Value runtime sudah pakai envelope typed `v1|kind|len|payload` (tetap kompatibel baca legacy `i:`, `b:`, `s:`).
-- Call frame menyimpan `ip` + snapshot `locals` (encoded frame).
+## Kekurangan Runtime Saat Ini
 
-## Next Step Wajib Agar Lepas Total dari Rust
+- Masih jalan di atas host Rust (belum ada engine native Cerberus yang bisa boot sendiri tanpa binary host).
+- Boundary host I/O (`readfile`, `writefile`, `env`, `fs`) masih tergantung implementasi VM host.
+- Format utama masih script opcode teks; belum menjadi paket runtime mandiri dengan bytecode container + manifest yang stabil.
+- Kontrak ABI antar versi runtime belum dibakukan sebagai compatibility policy formal.
 
-- Stage 1: format modul bytecode tekstual resmi + loader multiline yang stabil.
-- Stage 2: transisi ke value model non-string (typed runtime value).
-- Stage 3: pindahkan compiler stdlib untuk emit format yang langsung dikonsumsi runtime VM.
-- Stage 4: build bootstrap chain (compiler.cer + runtime.cer) sebagai toolchain default.
-- Stage 5: Rust host diturunkan menjadi fallback/legacy runner, bukan runtime utama.
+## Status Kemandirian (Reality Check)
+
+- Compiler self-host: **ya**
+- Runtime logic ditulis Cerberus: **ya (sebagian besar di stdlib/vm/runtime)**
+- Toolchain tanpa binary Rust: **belum**
+- Distribusi portable murni Cerberus: **belum**
+
+## Target Minimum Agar Bisa Disebut Standalone
+
+- Ada runtime launcher native Cerberus (atau bootstrap binary minimal non-Rust) yang bukan host VM Rust penuh.
+- Ada format artifact stabil (`magic`, `version`, `feature flags`) untuk eksekusi lintas versi.
+- Ada paket stdlib + compiler + runtime yang bisa di-deploy sebagai toolchain tunggal.
+- Rust path menjadi fallback/legacy, bukan jalur default produksi.

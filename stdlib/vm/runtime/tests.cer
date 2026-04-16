@@ -1,5 +1,5 @@
 program vm_runtime_tests;
-uses dispatch, validate, io, runtime_ops;
+uses dispatch, validate, io, runtime_ops, toolchain;
 
 function vm_rt_contains(hay: string; needle: string): boolean;
 var i: integer;
@@ -78,6 +78,109 @@ begin
   return rt_io_basename(joined) = name and rt_io_dirname(joined) = base;
 end;
 
+function vm_runtime_test_toolchain_pack_resolve(): boolean;
+var script: string;
+pkg: string;
+resolved: string;
+begin
+  script := 'label main; const_int 4; const_int 5; add; println; halt;';
+  pkg := rt_toolchain_pack_script(script, 'main', '100', '64', '16');
+  if not rt_toolchain_is_package(pkg) then
+    return false;
+  if not vm_rt_contains(pkg, ';vm=1') then
+    return false;
+  if not vm_rt_contains(pkg, ';abi=1') then
+    return false;
+  if not vm_rt_contains(pkg, ';features=') then
+    return false;
+  if not vm_rt_contains(pkg, ';artifact=vm_package') then
+    return false;
+  if not vm_rt_contains(pkg, ';toolchain=cerberus_selfhost') then
+    return false;
+  if not vm_rt_contains(pkg, ';checksum=') then
+    return false;
+  resolved := rt_toolchain_resolve(pkg);
+  if vm_rt_contains(resolved, 'ERROR: toolchain artifact:') then
+    return false;
+  return vm_rt_expect_ok(resolved);
+end;
+
+function vm_runtime_test_toolchain_bad_format(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := concat(rt_toolchain_magic(), ';unknown_format::code::halt;');
+  resolved := rt_toolchain_resolve(pkg);
+  return vm_rt_contains(resolved, 'ERROR: toolchain artifact: unsupported format');
+end;
+
+function vm_runtime_test_toolchain_backward_compat(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := concat(rt_toolchain_magic(), ';vm_text_script::code::halt;');
+  resolved := rt_toolchain_resolve(pkg);
+  if vm_rt_contains(resolved, 'ERROR: toolchain artifact:') then
+    return false;
+  return vm_rt_expect_ok(resolved);
+end;
+
+function vm_runtime_test_toolchain_bad_vm_version(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := concat(rt_toolchain_magic(), ';vm_text_script;vm=2::code::halt;');
+  resolved := rt_toolchain_resolve(pkg);
+  return vm_rt_contains(resolved, 'ERROR: toolchain artifact: unsupported vm version');
+end;
+
+function vm_runtime_test_toolchain_bad_feature(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := concat(rt_toolchain_magic(), ';vm_text_script;features=core,net::code::halt;');
+  resolved := rt_toolchain_resolve(pkg);
+  return vm_rt_contains(resolved, 'ERROR: toolchain artifact: unsupported features');
+end;
+
+function vm_runtime_test_toolchain_checksum_mismatch(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := concat(rt_toolchain_magic(), ';vm_text_script;checksum=123::code::halt;');
+  resolved := rt_toolchain_resolve(pkg);
+  return vm_rt_contains(resolved, 'ERROR: toolchain artifact: checksum mismatch');
+end;
+
+function vm_runtime_test_toolchain_strict_requires_fields(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := concat(rt_toolchain_magic(), ';vm_text_script::code::halt;');
+  resolved := rt_toolchain_resolve_strict(pkg);
+  return vm_rt_contains(resolved, 'ERROR: toolchain artifact: missing header field vm');
+end;
+
+function vm_runtime_test_toolchain_strict_ok(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := rt_toolchain_pack_script('halt;', '', '', '', '');
+  resolved := rt_toolchain_resolve_strict(pkg);
+  if vm_rt_contains(resolved, 'ERROR: toolchain artifact:') then
+    return false;
+  return vm_rt_expect_ok(resolved);
+end;
+
+function vm_runtime_test_toolchain_bad_artifact(): boolean;
+var pkg: string;
+resolved: string;
+begin
+  pkg := concat(rt_toolchain_magic(), ';vm_text_script;vm=1;abi=1;features=core;artifact=legacy;toolchain=cerberus_selfhost;checksum=123::code::halt;');
+  resolved := rt_toolchain_resolve(pkg);
+  return vm_rt_contains(resolved, 'ERROR: toolchain artifact: unsupported artifact legacy');
+end;
+
 function vm_runtime_tests_available(): boolean;
 begin
   return true;
@@ -94,6 +197,24 @@ begin
   if not vm_runtime_test_ops_classifier() then
     return false;
   if not vm_runtime_test_path_helpers() then
+    return false;
+  if not vm_runtime_test_toolchain_pack_resolve() then
+    return false;
+  if not vm_runtime_test_toolchain_bad_format() then
+    return false;
+  if not vm_runtime_test_toolchain_backward_compat() then
+    return false;
+  if not vm_runtime_test_toolchain_bad_vm_version() then
+    return false;
+  if not vm_runtime_test_toolchain_bad_feature() then
+    return false;
+  if not vm_runtime_test_toolchain_checksum_mismatch() then
+    return false;
+  if not vm_runtime_test_toolchain_strict_requires_fields() then
+    return false;
+  if not vm_runtime_test_toolchain_strict_ok() then
+    return false;
+  if not vm_runtime_test_toolchain_bad_artifact() then
     return false;
   return true;
 end;

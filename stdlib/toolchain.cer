@@ -1,0 +1,867 @@
+program toolchain;
+uses vm, aot;
+
+var cmd: string;
+in_path: string;
+out_path: string;
+launcher_path: string;
+src: string;
+pkg: string;
+resolved: string;
+err: string;
+app_name: string;
+target_root_override: string;
+pack_entry: string;
+pack_limit_steps: string;
+pack_limit_stack: string;
+pack_limit_call: string;
+idx: integer;
+opt: string;
+strict_mode: boolean;
+aot_platform: string;
+aot_out_bin: string;
+aot_out_obj: string;
+aot_script_out: string;
+aot_exec_cmd: string;
+aot_exit_code: integer;
+aot_build_now: boolean;
+aot_no_script: boolean;
+aot_outputs: vector of string;
+aot_asm_lines: vector of string;
+
+function tc_starts_with(s: string; prefix: string): boolean;
+begin
+  if strlen(s) < strlen(prefix) then
+    return false;
+  return substr(s, 0, strlen(prefix)) = prefix;
+end;
+
+function tc_target_root(): string;
+var root: string;
+begin
+  root := '.cerberus_target';
+  if env_has('CERBERUS_TARGET_DIR') then
+  begin
+    if env_get('CERBERUS_TARGET_DIR') <> '' then
+      root := env_get('CERBERUS_TARGET_DIR');
+  end;
+  return root;
+end;
+
+function tc_basename(path: string): string;
+var i: integer;
+n: integer;
+last: integer;
+ch: string;
+sep: string;
+begin
+  n := strlen(path);
+  last := -1;
+  sep := substr(path_join('a', 'b'), 1, 1);
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(path, i, 1);
+    if ch = '/' or ch = sep then
+      last := i;
+    i := i + 1;
+  end;
+  if last < 0 then
+    return path;
+  if last + 1 >= n then
+    return '';
+  return substr(path, last + 1, n - last - 1);
+end;
+
+function tc_stem(path: string): string;
+var name: string;
+i: integer;
+n: integer;
+last_dot: integer;
+ch: string;
+begin
+  name := tc_basename(path);
+  n := strlen(name);
+  if n = 0 then
+    return 'output';
+  last_dot := -1;
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(name, i, 1);
+    if ch = '.' then
+      last_dot := i;
+    i := i + 1;
+  end;
+  if last_dot <= 0 then
+    return name;
+  return substr(name, 0, last_dot);
+end;
+
+function tc_dirname(path: string): string;
+var i: integer;
+n: integer;
+last: integer;
+ch: string;
+sep: string;
+begin
+  n := strlen(path);
+  last := -1;
+  sep := substr(path_join('a', 'b'), 1, 1);
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(path, i, 1);
+    if ch = '/' or ch = sep then
+      last := i;
+    i := i + 1;
+  end;
+  if last < 0 then
+    return '.';
+  if last = 0 then
+    return '/';
+  if last = 2 and substr(path, 1, 1) = ':' then
+    return substr(path, 0, 3);
+  return substr(path, 0, last);
+end;
+
+function tc_default_pack_output(path: string): string;
+begin
+  return path_join(path_join(tc_target_root(), 'package'), concat(tc_stem(path), '.crt'));
+end;
+
+function tc_default_build_dir(name: string): string;
+begin
+  return path_join(path_join(tc_target_root(), 'app'), name);
+end;
+
+function tc_make_windows_launcher(app_name: string; pkg_name: string): string;
+var
+script: string;
+begin
+  script := '@echo off';
+  script := concat(script, ' & setlocal EnableDelayedExpansion');
+  script := concat(script, ' & set "SCRIPT_DIR=%~dp0"');
+  script := concat(script, concat(' & if exist "!SCRIPT_DIR!', concat(app_name, '.exe" (')));
+  script := concat(script, concat('call "!SCRIPT_DIR!', concat(app_name, '.exe" %*')));
+  script := concat(script, ') else (');
+  script := concat(script, 'if exist "!SCRIPT_DIR!cerberus-compiler.exe" (');
+  script := concat(script, concat('call "!SCRIPT_DIR!cerberus-compiler.exe" "!SCRIPT_DIR!', concat(pkg_name, '" %*')));
+  script := concat(script, ') else (');
+  script := concat(script, concat('call cerberus-compiler "!SCRIPT_DIR!', concat(pkg_name, '" %*')));
+  script := concat(script, '))');
+  return script;
+end;
+
+function tc_make_windows_bundle_launcher(app_name: string; pkg_name: string): string;
+var
+script: string;
+begin
+  script := '@echo off';
+  script := concat(script, ' & setlocal EnableDelayedExpansion');
+  script := concat(script, ' & set "SCRIPT_DIR=%~dp0"');
+  script := concat(script, concat(' & if not exist "!SCRIPT_DIR!', concat(app_name, '.exe" (')));
+  script := concat(script, 'if exist "!SCRIPT_DIR!cerberus-compiler.exe" (');
+  script := concat(script, concat('call "!SCRIPT_DIR!cerberus-compiler.exe" aot "!SCRIPT_DIR!', concat(pkg_name, concat('" "!SCRIPT_DIR!', concat(app_name, '.exe"')))));
+  script := concat(script, ') else (');
+  script := concat(script, concat('call cerberus-compiler aot "!SCRIPT_DIR!', concat(pkg_name, concat('" "!SCRIPT_DIR!', concat(app_name, '.exe"')))));
+  script := concat(script, '))');
+  script := concat(script, concat(' & if exist "!SCRIPT_DIR!', concat(app_name, '.exe" (')));
+  script := concat(script, concat('call "!SCRIPT_DIR!', concat(app_name, '.exe" %*')));
+  script := concat(script, ') else (');
+  script := concat(script, 'if exist "!SCRIPT_DIR!cerberus-compiler.exe" (');
+  script := concat(script, concat('call "!SCRIPT_DIR!cerberus-compiler.exe" "!SCRIPT_DIR!', concat(pkg_name, '" %*')));
+  script := concat(script, ') else (');
+  script := concat(script, concat('call cerberus-compiler "!SCRIPT_DIR!', concat(pkg_name, '" %*')));
+  script := concat(script, '))');
+  return script;
+end;
+
+procedure tc_print_usage();
+begin
+  writeln('usage: toolchain <pack|build|bundle|aot-selfhost|run|validate|resolve|selftest> ...');
+  writeln('  pack <vm_script.cer> [out.crt] [--entry <label>] [--limit-steps <n>] [--limit-stack <n>] [--limit-call <n>]');
+  writeln('       default out: .cerberus_target/package (or CERBERUS_TARGET_DIR)');
+  writeln('  build <vm_script.cer> [app_name] [--entry <label>] [--limit-steps <n>] [--limit-stack <n>] [--limit-call <n>]');
+  writeln('       output: .cerberus_target/app/<app_name>/<app_name>.crt + <app_name>.cmd');
+  writeln('       launcher prefers <app_name>.exe sidecar if present');
+  writeln('  bundle <vm_script.cer|out.crt> [app_name] [--target-dir <dir>] [--entry <label>] [--limit-steps <n>] [--limit-stack <n>] [--limit-call <n>]');
+  writeln('       output: .cerberus_target/app/<app_name>/<app_name>.crt + <app_name>.cmd');
+  writeln('       launcher auto-runs: cerberus-compiler aot <app>.crt <app>.exe when exe missing');
+  writeln('  aot-selfhost <vm_script.cer|out.crt> <out.asm> [--platform <win64|linux64>] [--out-bin <path>] [--script <path>] [--build-now] [--no-script]');
+  writeln('       output: build script generated by Cerberus AOT (assembler/linker path), default platform win64');
+  writeln('       --build-now: langsung jalankan script via os_exec (nasm + linker)');
+  writeln('       --no-script: jangan tulis script, hanya valid jika --build-now tidak dipakai');
+  writeln('  run <vm_script.cer|out.crt> [--strict]');
+  writeln('  validate <vm_script.cer|out.crt> [--strict]');
+  writeln('  resolve <out.crt> [resolved_vm_script.cer] [--strict]');
+  writeln('  selftest');
+end;
+
+begin
+  if arg_count() < 1 then
+  begin
+    tc_print_usage();
+    return;
+  end;
+
+  cmd := arg(0);
+
+  if cmd = 'pack' then
+  begin
+    if arg_count() < 2 then
+    begin
+      tc_print_usage();
+      return;
+    end;
+    in_path := arg(1);
+    pack_entry := '';
+    pack_limit_steps := '';
+    pack_limit_stack := '';
+    pack_limit_call := '';
+    if arg_count() > 2 then
+    begin
+      if tc_starts_with(arg(2), '--') then
+      begin
+        out_path := tc_default_pack_output(in_path);
+        idx := 2;
+      end
+      else
+      begin
+        out_path := arg(2);
+        idx := 3;
+      end;
+    end
+    else
+    begin
+      out_path := tc_default_pack_output(in_path);
+      idx := 2;
+    end;
+    while idx < arg_count() do
+    begin
+      opt := arg(idx);
+      if opt = '--entry' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --entry requires value');
+          return;
+        end;
+        pack_entry := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-steps' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-steps requires value');
+          return;
+        end;
+        pack_limit_steps := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-stack' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-stack requires value');
+          return;
+        end;
+        pack_limit_stack := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-call' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-call requires value');
+          return;
+        end;
+        pack_limit_call := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else
+      begin
+        writeln(concat('ERROR: unknown pack option ', opt));
+        return;
+      end;
+    end;
+    src := readfile(in_path);
+    err := vm_validate_script(src);
+    if err <> '' then
+    begin
+      writeln(concat('ERROR: invalid vm script: ', err));
+      return;
+    end;
+    pkg := vm_toolchain_pack(src, pack_entry, pack_limit_steps, pack_limit_stack, pack_limit_call);
+    resolved := vm_toolchain_resolve(pkg);
+    if tc_starts_with(resolved, 'ERROR:') then
+    begin
+      writeln(resolved);
+      return;
+    end;
+    err := vm_validate_script(resolved);
+    if err <> '' then
+    begin
+      writeln(concat('ERROR: packaged script invalid: ', err));
+      return;
+    end;
+    writefile(out_path, pkg);
+    writeln(concat('ok: wrote package ', out_path));
+    return;
+  end;
+
+  if cmd = 'build' then
+  begin
+    if arg_count() < 2 then
+    begin
+      tc_print_usage();
+      return;
+    end;
+    in_path := arg(1);
+    pack_entry := '';
+    pack_limit_steps := '';
+    pack_limit_stack := '';
+    pack_limit_call := '';
+    if arg_count() > 2 then
+    begin
+      if tc_starts_with(arg(2), '--') then
+      begin
+        app_name := tc_stem(in_path);
+        idx := 2;
+      end
+      else
+      begin
+        app_name := arg(2);
+        idx := 3;
+      end;
+    end
+    else
+    begin
+      app_name := tc_stem(in_path);
+      idx := 2;
+    end;
+    if app_name = '' then
+    begin
+      writeln('ERROR: app_name must not be empty');
+      return;
+    end;
+    while idx < arg_count() do
+    begin
+      opt := arg(idx);
+      if opt = '--entry' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --entry requires value');
+          return;
+        end;
+        pack_entry := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-steps' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-steps requires value');
+          return;
+        end;
+        pack_limit_steps := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-stack' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-stack requires value');
+          return;
+        end;
+        pack_limit_stack := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-call' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-call requires value');
+          return;
+        end;
+        pack_limit_call := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else
+      begin
+        writeln(concat('ERROR: unknown build option ', opt));
+        return;
+      end;
+    end;
+    src := readfile(in_path);
+    err := vm_validate_script(src);
+    if err <> '' then
+    begin
+      writeln(concat('ERROR: invalid vm script: ', err));
+      return;
+    end;
+    pkg := vm_toolchain_pack(src, pack_entry, pack_limit_steps, pack_limit_stack, pack_limit_call);
+    resolved := vm_toolchain_resolve(pkg);
+    if tc_starts_with(resolved, 'ERROR:') then
+    begin
+      writeln(resolved);
+      return;
+    end;
+    err := vm_validate_script(resolved);
+    if err <> '' then
+    begin
+      writeln(concat('ERROR: packaged script invalid: ', err));
+      return;
+    end;
+    out_path := path_join(tc_default_build_dir(app_name), concat(app_name, '.crt'));
+    writefile(out_path, pkg);
+    launcher_path := path_join(tc_default_build_dir(app_name), concat(app_name, '.cmd'));
+    writefile(launcher_path, tc_make_windows_launcher(app_name, concat(app_name, '.crt')));
+    writeln(concat('ok: wrote package ', out_path));
+    writeln(concat('ok: wrote launcher ', launcher_path));
+    writeln(concat('hint: drop ', concat(app_name, '.exe (renamed cerberus-compiler.exe) in same folder for direct exe launch')));
+    return;
+  end;
+
+  if cmd = 'bundle' then
+  begin
+    if arg_count() < 2 then
+    begin
+      tc_print_usage();
+      return;
+    end;
+    in_path := arg(1);
+    pack_entry := '';
+    pack_limit_steps := '';
+    pack_limit_stack := '';
+    pack_limit_call := '';
+    target_root_override := '';
+    if arg_count() > 2 then
+    begin
+      if tc_starts_with(arg(2), '--') then
+      begin
+        app_name := tc_stem(in_path);
+        idx := 2;
+      end
+      else
+      begin
+        app_name := arg(2);
+        idx := 3;
+      end;
+    end
+    else
+    begin
+      app_name := tc_stem(in_path);
+      idx := 2;
+    end;
+    if app_name = '' then
+    begin
+      writeln('ERROR: app_name must not be empty');
+      return;
+    end;
+    while idx < arg_count() do
+    begin
+      opt := arg(idx);
+      if opt = '--entry' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --entry requires value');
+          return;
+        end;
+        pack_entry := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--target-dir' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --target-dir requires value');
+          return;
+        end;
+        target_root_override := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-steps' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-steps requires value');
+          return;
+        end;
+        pack_limit_steps := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-stack' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-stack requires value');
+          return;
+        end;
+        pack_limit_stack := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--limit-call' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --limit-call requires value');
+          return;
+        end;
+        pack_limit_call := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else
+      begin
+        writeln(concat('ERROR: unknown bundle option ', opt));
+        return;
+      end;
+    end;
+    src := readfile(in_path);
+    if vm_toolchain_is_package(src) then
+    begin
+      pkg := src;
+      resolved := vm_toolchain_resolve(pkg);
+      if tc_starts_with(resolved, 'ERROR:') then
+      begin
+        writeln(resolved);
+        return;
+      end;
+      err := vm_validate_script(resolved);
+      if err <> '' then
+      begin
+        writeln(concat('ERROR: packaged script invalid: ', err));
+        return;
+      end;
+    end
+    else
+    begin
+      err := vm_validate_script(src);
+      if err <> '' then
+      begin
+        writeln(concat('ERROR: invalid vm script: ', err));
+        return;
+      end;
+      pkg := vm_toolchain_pack(src, pack_entry, pack_limit_steps, pack_limit_stack, pack_limit_call);
+      resolved := vm_toolchain_resolve(pkg);
+      if tc_starts_with(resolved, 'ERROR:') then
+      begin
+        writeln(resolved);
+        return;
+      end;
+      err := vm_validate_script(resolved);
+      if err <> '' then
+      begin
+        writeln(concat('ERROR: packaged script invalid: ', err));
+        return;
+      end;
+    end;
+    if target_root_override <> '' then
+      out_path := path_join(path_join(path_join(target_root_override, 'app'), app_name), concat(app_name, '.crt'))
+    else
+      out_path := path_join(tc_default_build_dir(app_name), concat(app_name, '.crt'));
+    writefile(out_path, pkg);
+    if target_root_override <> '' then
+      launcher_path := path_join(path_join(path_join(target_root_override, 'app'), app_name), concat(app_name, '.cmd'))
+    else
+      launcher_path := path_join(tc_default_build_dir(app_name), concat(app_name, '.cmd'));
+    writefile(launcher_path, tc_make_windows_bundle_launcher(app_name, concat(app_name, '.crt')));
+    writeln(concat('ok: wrote package ', out_path));
+    writeln(concat('ok: wrote launcher ', launcher_path));
+    writeln('hint: first run auto-builds exe via cerberus-compiler aot');
+    writeln('hint: place latest cerberus-compiler.exe in app folder for deterministic bootstrap');
+    return;
+  end;
+
+  if cmd = 'aot-selfhost' then
+  begin
+    if arg_count() < 3 then
+    begin
+      tc_print_usage();
+      return;
+    end;
+    in_path := arg(1);
+    out_path := arg(2);
+    aot_platform := 'win64';
+    aot_out_bin := '';
+    aot_script_out := '';
+    aot_exec_cmd := '';
+    aot_exit_code := 0;
+    aot_build_now := false;
+    aot_no_script := false;
+    idx := 3;
+    while idx < arg_count() do
+    begin
+      opt := arg(idx);
+      if opt = '--platform' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --platform requires value');
+          return;
+        end;
+        aot_platform := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--out-bin' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --out-bin requires value');
+          return;
+        end;
+        aot_out_bin := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--script' then
+      begin
+        if idx + 1 >= arg_count() then
+        begin
+          writeln('ERROR: --script requires value');
+          return;
+        end;
+        aot_script_out := arg(idx + 1);
+        idx := idx + 2;
+      end
+      else if opt = '--build-now' then
+      begin
+        aot_build_now := true;
+        idx := idx + 1;
+      end
+      else if opt = '--no-script' then
+      begin
+        aot_no_script := true;
+        idx := idx + 1;
+      end
+      else
+      begin
+        writeln(concat('ERROR: unknown aot-selfhost option ', opt));
+        return;
+      end;
+    end;
+
+    src := readfile(in_path);
+    if vm_toolchain_is_package(src) then
+      resolved := vm_toolchain_resolve(src)
+    else
+      resolved := src;
+    if tc_starts_with(resolved, 'ERROR:') then
+    begin
+      writeln(resolved);
+      return;
+    end;
+    err := vm_validate_script(resolved);
+    if err <> '' then
+    begin
+      writeln(concat('ERROR: invalid vm script: ', err));
+      return;
+    end;
+
+    aot_outputs := aot_eval_outputs(resolved);
+    if aot_is_error(aot_outputs) then
+    begin
+      writeln(aot_error(aot_outputs));
+      return;
+    end;
+
+    if aot_platform = '' then
+      aot_platform := 'win64';
+    if aot_out_bin = '' then
+    begin
+      if aot_platform = 'linux64' then
+        aot_out_bin := path_join(tc_dirname(out_path), tc_stem(out_path))
+      else
+        aot_out_bin := path_join(tc_dirname(out_path), concat(tc_stem(out_path), '.exe'));
+    end;
+
+    if aot_platform = 'linux64' then
+      aot_out_obj := path_join(tc_dirname(out_path), concat(tc_stem(out_path), '.o'))
+    else
+      aot_out_obj := path_join(tc_dirname(out_path), concat(tc_stem(out_path), '.obj'));
+
+    if aot_script_out = '' then
+    begin
+      if aot_platform = 'linux64' then
+        aot_script_out := concat(out_path, '.sh')
+      else
+        aot_script_out := concat(out_path, '.cmd');
+    end;
+
+    if aot_platform = 'linux64' then
+      aot_asm_lines := aot_linux_asm_lines(aot_outputs)
+    else if aot_platform = 'win64' then
+      aot_asm_lines := aot_windows_asm_lines(aot_outputs)
+    else
+    begin
+      writeln(concat('ERROR: unsupported platform ', aot_platform));
+      return;
+    end;
+
+    if aot_platform = 'linux64' then
+      src := aot_build_linux_script(out_path, aot_out_obj, aot_out_bin, aot_asm_lines)
+    else
+      src := aot_build_windows_script(out_path, aot_out_obj, aot_out_bin, aot_asm_lines);
+
+    if aot_no_script and aot_build_now then
+    begin
+      writeln('ERROR: --no-script tidak bisa dipakai bersamaan dengan --build-now');
+      return;
+    end;
+
+    if not aot_no_script then
+    begin
+      writefile(aot_script_out, src);
+      writeln(concat('ok: wrote selfhost aot build script ', aot_script_out));
+    end;
+    writeln(concat('ok: target asm path ', out_path));
+    writeln(concat('ok: target binary path ', aot_out_bin));
+    if aot_build_now then
+    begin
+      if aot_platform = 'linux64' then
+        aot_exec_cmd := concat('sh ', aot_script_out)
+      else
+        aot_exec_cmd := concat('call ', aot_script_out);
+      aot_exit_code := os_exec(aot_exec_cmd);
+      if aot_exit_code <> 0 then
+      begin
+        writeln('ERROR: build script failed (non-zero exit code)');
+        return;
+      end;
+      writeln(concat('ok: built native binary ', aot_out_bin));
+    end
+    else if not aot_no_script then
+      writeln('hint: run the generated script to emit .asm then assemble+link via nasm/gcc');
+    return;
+  end;
+
+  if cmd = 'run' then
+  begin
+    if arg_count() < 2 then
+    begin
+      tc_print_usage();
+      return;
+    end;
+    strict_mode := false;
+    idx := 2;
+    while idx < arg_count() do
+    begin
+      if arg(idx) = '--strict' then
+        strict_mode := true
+      else
+      begin
+        writeln(concat('ERROR: unknown run option ', arg(idx)));
+        return;
+      end;
+      idx := idx + 1;
+    end;
+    if strict_mode then
+      err := vm_execute_file_strict(arg(1))
+    else
+      err := vm_execute_file(arg(1));
+    if err <> '' then
+      writeln(err);
+    return;
+  end;
+
+  if cmd = 'validate' then
+  begin
+    if arg_count() < 2 then
+    begin
+      tc_print_usage();
+      return;
+    end;
+    strict_mode := false;
+    idx := 2;
+    while idx < arg_count() do
+    begin
+      if arg(idx) = '--strict' then
+        strict_mode := true
+      else
+      begin
+        writeln(concat('ERROR: unknown validate option ', arg(idx)));
+        return;
+      end;
+      idx := idx + 1;
+    end;
+    src := readfile(arg(1));
+    if strict_mode then
+      src := vm_toolchain_resolve_strict(src)
+    else
+      src := vm_toolchain_resolve(src);
+    if tc_starts_with(src, 'ERROR:') then
+    begin
+      writeln(src);
+      return;
+    end;
+    err := vm_validate_script(src);
+    if err = '' then
+      writeln('ok: valid')
+    else
+      writeln(concat('ERROR: ', err));
+    return;
+  end;
+
+  if cmd = 'resolve' then
+  begin
+    if arg_count() < 2 then
+    begin
+      tc_print_usage();
+      return;
+    end;
+    strict_mode := false;
+    out_path := '';
+    idx := 2;
+    if idx < arg_count() then
+    begin
+      if arg(idx) <> '--strict' then
+      begin
+        out_path := arg(idx);
+        idx := idx + 1;
+      end;
+    end;
+    while idx < arg_count() do
+    begin
+      if arg(idx) = '--strict' then
+        strict_mode := true
+      else
+      begin
+        writeln(concat('ERROR: unknown resolve option ', arg(idx)));
+        return;
+      end;
+      idx := idx + 1;
+    end;
+    src := readfile(arg(1));
+    if strict_mode then
+      src := vm_toolchain_resolve_strict(src)
+    else
+      src := vm_toolchain_resolve(src);
+    if tc_starts_with(src, 'ERROR:') then
+    begin
+      writeln(src);
+      return;
+    end;
+    if out_path <> '' then
+    begin
+      writefile(out_path, src);
+      writeln(concat('ok: wrote resolved script ', out_path));
+    end
+    else
+      writeln(src);
+    return;
+  end;
+
+  if cmd = 'selftest' then
+  begin
+    if vm_self_test() then
+      writeln('ok: vm selftest passed')
+    else
+      writeln('ERROR: vm selftest failed');
+    return;
+  end;
+
+  writeln(concat('ERROR: unknown command ', cmd));
+  tc_print_usage();
+end.

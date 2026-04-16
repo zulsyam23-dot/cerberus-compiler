@@ -111,6 +111,7 @@ pub(super) fn format_instr(instr: &Instr) -> String {
         Instr::PathJoin => "PathJoin".to_string(),
         Instr::FsExists => "FsExists".to_string(),
         Instr::FsListDir => "FsListDir".to_string(),
+        Instr::OsExec => "OsExec".to_string(),
         Instr::NowTimestamp => "NowTimestamp".to_string(),
         Instr::SleepMs => "SleepMs".to_string(),
         Instr::LogStr => "LogStr".to_string(),

@@ -133,6 +133,7 @@ fn decode_instr(buf: &[u8], cursor: &mut usize) -> Result<Instr, CompileError> {
         x if x == OpCode::PathJoin as u8 => Instr::PathJoin,
         x if x == OpCode::FsExists as u8 => Instr::FsExists,
         x if x == OpCode::FsListDir as u8 => Instr::FsListDir,
+        x if x == OpCode::OsExec as u8 => Instr::OsExec,
         x if x == OpCode::NowTimestamp as u8 => Instr::NowTimestamp,
         x if x == OpCode::SleepMs as u8 => Instr::SleepMs,
         x if x == OpCode::LogStr as u8 => Instr::LogStr,

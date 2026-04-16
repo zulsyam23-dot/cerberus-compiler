@@ -192,6 +192,13 @@ begin
     end;
     if name = 'now_timestamp' then
       return tc_set_result(state, 'int');
+    if name = 'os_exec' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'os_exec expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'os_exec expects string');
+      return tc_set_result(state, 'int');
+    end;
 
     if name = 'vector_new_int' then return tc_set_result(state, tc_type_vector('int'));
     if name = 'vector_new_bool' then return tc_set_result(state, tc_type_vector('bool'));

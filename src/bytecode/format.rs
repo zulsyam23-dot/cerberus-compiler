@@ -23,7 +23,14 @@ pub fn write_bytecode(path: &str, bc: &Bytecode) -> Result<(), CompileError> {
     for func in &bc.functions {
         write_function(&mut buf, func);
     }
-    let mut file = File::create(path)
+    let path_obj = std::path::Path::new(path);
+    if let Some(parent) = path_obj.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| CompileError::new_simple(format!("write bytecode failed: {e}")))?;
+        }
+    }
+    let mut file = File::create(path_obj)
         .map_err(|e| CompileError::new_simple(format!("write bytecode failed: {e}")))?;
     file.write_all(&buf)
         .map_err(|e| CompileError::new_simple(format!("write bytecode failed: {e}")))?;

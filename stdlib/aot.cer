@@ -1,0 +1,591 @@
+program aot_selfhost;
+uses helpers;
+
+function aot_starts_with(s: string; prefix: string): boolean;
+begin
+  if strlen(s) < strlen(prefix) then
+    return false;
+  return substr(s, 0, strlen(prefix)) = prefix;
+end;
+
+function aot_join_lines(lines: vector of string; sep: string): string;
+var out: string;
+i: integer;
+n: integer;
+begin
+  out := '';
+  i := 0;
+  n := vector_len(lines);
+  while i < n do
+  begin
+    if i = 0 then
+      out := vector_get(lines, i)
+    else
+      out := concat(out, concat(sep, vector_get(lines, i)));
+    i := i + 1;
+  end;
+  return out;
+end;
+
+function aot_make_error(msg: string): vector of string;
+var out: vector of string;
+begin
+  out := vector_new_str();
+  out := vector_push(out, concat('ERROR: aot-selfhost: ', msg));
+  return out;
+end;
+
+function aot_is_error(lines: vector of string): boolean;
+begin
+  if vector_len(lines) = 0 then
+    return false;
+  return aot_starts_with(vector_get(lines, 0), 'ERROR:');
+end;
+
+function aot_error(lines: vector of string): string;
+begin
+  if aot_is_error(lines) then
+    return vector_get(lines, 0);
+  return '';
+end;
+
+function aot_tag_int(v: integer): string;
+begin
+  return concat('i:', rt_int_to_str(v));
+end;
+
+function aot_tag_bool(v: boolean): string;
+begin
+  if v then
+    return 'b:true';
+  return 'b:false';
+end;
+
+function aot_tag_str(v: string): string;
+begin
+  return concat('s:', v);
+end;
+
+function aot_is_int(v: string): boolean;
+begin
+  return aot_starts_with(v, 'i:');
+end;
+
+function aot_is_bool(v: string): boolean;
+begin
+  return aot_starts_with(v, 'b:');
+end;
+
+function aot_is_str(v: string): boolean;
+begin
+  return aot_starts_with(v, 's:');
+end;
+
+function aot_as_int(v: string): integer;
+begin
+  if not aot_is_int(v) then
+    return 0;
+  return rt_parse_int(substr(v, 2, strlen(v) - 2));
+end;
+
+function aot_as_bool(v: string): boolean;
+begin
+  return v = 'b:true';
+end;
+
+function aot_as_str(v: string): string;
+begin
+  if not aot_is_str(v) then
+    return '';
+  return substr(v, 2, strlen(v) - 2);
+end;
+
+function aot_render(v: string): string;
+begin
+  if aot_is_int(v) then
+    return rt_int_to_str(aot_as_int(v));
+  if aot_is_bool(v) then
+  begin
+    if aot_as_bool(v) then
+      return 'true';
+    return 'false';
+  end;
+  if aot_is_str(v) then
+    return aot_as_str(v);
+  return '';
+end;
+
+function aot_eval_outputs(script: string): vector of string;
+var lines: vector of string;
+stk: vector of string;
+out: vector of string;
+i: integer;
+n: integer;
+line: string;
+op: string;
+arg: string;
+err: string;
+a: string;
+b: string;
+ai: integer;
+bi: integer;
+begin
+  lines := rt_split_lines(script);
+  stk := vector_new_str();
+  out := vector_new_str();
+  err := '';
+  i := 0;
+  n := vector_len(lines);
+  while i < n and err = '' do
+  begin
+    line := vector_get(lines, i);
+    op := rt_line_op(line);
+    arg := rt_line_arg(line);
+
+    if op = '' or op = '#' or op = '@cerberus_vm' or op = '@entry' or op = '@limit_steps' or op = '@limit_stack' or op = '@limit_call' then
+    begin
+    end
+    else if op = 'label' or op = 'nop' then
+    begin
+    end
+    else if op = 'halt' then
+      i := n
+    else if op = 'const_int' then
+    begin
+      if not rt_is_int_token(arg) then
+        err := concat('const_int invalid integer ', arg)
+      else
+        stk := vector_push(stk, aot_tag_int(rt_parse_int(arg)));
+    end
+    else if op = 'const_bool' then
+    begin
+      if arg = 'true' then
+        stk := vector_push(stk, aot_tag_bool(true))
+      else if arg = 'false' then
+        stk := vector_push(stk, aot_tag_bool(false))
+      else
+        err := concat('const_bool invalid bool ', arg);
+    end
+    else if op = 'const_str' then
+      stk := vector_push(stk, aot_tag_str(rt_parse_str_literal(arg)))
+    else if op = 'add' or op = 'sub' or op = 'mul' or op = 'div' then
+    begin
+      if vector_len(stk) < 2 then
+        err := concat(op, ' stack underflow')
+      else
+      begin
+        b := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if not aot_is_int(a) or not aot_is_int(b) then
+          err := concat(op, ' expects int')
+        else
+        begin
+          ai := aot_as_int(a);
+          bi := aot_as_int(b);
+          if op = 'add' then
+            stk := vector_push(stk, aot_tag_int(ai + bi))
+          else if op = 'sub' then
+            stk := vector_push(stk, aot_tag_int(ai - bi))
+          else if op = 'mul' then
+            stk := vector_push(stk, aot_tag_int(ai * bi))
+          else
+          begin
+            if bi = 0 then
+              err := 'div by zero'
+            else
+              stk := vector_push(stk, aot_tag_int(ai / bi));
+          end;
+        end;
+      end;
+    end
+    else if op = 'eq' or op = 'ne' then
+    begin
+      if vector_len(stk) < 2 then
+        err := concat(op, ' stack underflow')
+      else
+      begin
+        b := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if op = 'eq' then
+          stk := vector_push(stk, aot_tag_bool(a = b))
+        else
+          stk := vector_push(stk, aot_tag_bool(a <> b));
+      end;
+    end
+    else if op = 'lt' or op = 'le' or op = 'gt' or op = 'ge' then
+    begin
+      if vector_len(stk) < 2 then
+        err := concat(op, ' stack underflow')
+      else
+      begin
+        b := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if not aot_is_int(a) or not aot_is_int(b) then
+          err := concat(op, ' expects int')
+        else
+        begin
+          ai := aot_as_int(a);
+          bi := aot_as_int(b);
+          if op = 'lt' then
+            stk := vector_push(stk, aot_tag_bool(ai < bi))
+          else if op = 'le' then
+            stk := vector_push(stk, aot_tag_bool(ai <= bi))
+          else if op = 'gt' then
+            stk := vector_push(stk, aot_tag_bool(ai > bi))
+          else
+            stk := vector_push(stk, aot_tag_bool(ai >= bi));
+        end;
+      end;
+    end
+    else if op = 'and' or op = 'or' then
+    begin
+      if vector_len(stk) < 2 then
+        err := concat(op, ' stack underflow')
+      else
+      begin
+        b := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if not aot_is_bool(a) or not aot_is_bool(b) then
+          err := concat(op, ' expects bool')
+        else
+        begin
+          if op = 'and' then
+            stk := vector_push(stk, aot_tag_bool(aot_as_bool(a) and aot_as_bool(b)))
+          else
+            stk := vector_push(stk, aot_tag_bool(aot_as_bool(a) or aot_as_bool(b)));
+        end;
+      end;
+    end
+    else if op = 'not' then
+    begin
+      if vector_len(stk) < 1 then
+        err := 'not stack underflow'
+      else
+      begin
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if not aot_is_bool(a) then
+          err := 'not expects bool'
+        else
+          stk := vector_push(stk, aot_tag_bool(not aot_as_bool(a)));
+      end;
+    end
+    else if op = 'neg' then
+    begin
+      if vector_len(stk) < 1 then
+        err := 'neg stack underflow'
+      else
+      begin
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if not aot_is_int(a) then
+          err := 'neg expects int'
+        else
+          stk := vector_push(stk, aot_tag_int(0 - aot_as_int(a)));
+      end;
+    end
+    else if op = 'strlen' then
+    begin
+      if vector_len(stk) < 1 then
+        err := 'strlen stack underflow'
+      else
+      begin
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if not aot_is_str(a) then
+          err := 'strlen expects string'
+        else
+          stk := vector_push(stk, aot_tag_int(strlen(aot_as_str(a))));
+      end;
+    end
+    else if op = 'concat' then
+    begin
+      if vector_len(stk) < 2 then
+        err := 'concat stack underflow'
+      else
+      begin
+        b := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        if not aot_is_str(a) or not aot_is_str(b) then
+          err := 'concat expects string'
+        else
+          stk := vector_push(stk, aot_tag_str(concat(aot_as_str(a), aot_as_str(b))));
+      end;
+    end
+    else if op = 'println' then
+    begin
+      if vector_len(stk) < 1 then
+        err := 'println stack underflow'
+      else
+      begin
+        a := vector_last(stk);
+        stk := vector_remove(stk, vector_len(stk) - 1);
+        out := vector_push(out, aot_render(a));
+      end;
+    end
+    else
+      err := concat('unsupported opcode ', op);
+
+    i := i + 1;
+  end;
+
+  if err <> '' then
+    return aot_make_error(err);
+  return out;
+end;
+
+function aot_find(hay: string; needle: string): integer;
+var i: integer;
+n: integer;
+m: integer;
+begin
+  n := strlen(hay);
+  m := strlen(needle);
+  if m = 0 then
+    return 0;
+  if n < m then
+    return -1;
+  i := 0;
+  while i <= n - m do
+  begin
+    if substr(hay, i, m) = needle then
+      return i;
+    i := i + 1;
+  end;
+  return -1;
+end;
+
+function aot_ascii(ch: string): integer;
+var idx: integer;
+digits: string;
+lower: string;
+upper: string;
+begin
+  if ch = ' ' then return 32;
+  if ch = '!' then return 33;
+  if ch = '"' then return 34;
+  if ch = '#' then return 35;
+  if ch = '$' then return 36;
+  if ch = '%' then return 37;
+  if ch = '&' then return 38;
+  if ch = '''' then return 39;
+  if ch = '(' then return 40;
+  if ch = ')' then return 41;
+  if ch = '*' then return 42;
+  if ch = '+' then return 43;
+  if ch = ',' then return 44;
+  if ch = '-' then return 45;
+  if ch = '.' then return 46;
+  if ch = '/' then return 47;
+  if ch = ':' then return 58;
+  if ch = ';' then return 59;
+  if ch = '<' then return 60;
+  if ch = '=' then return 61;
+  if ch = '>' then return 62;
+  if ch = '?' then return 63;
+  if ch = '@' then return 64;
+  if ch = '[' then return 91;
+  if ch = '\' then return 92;
+  if ch = ']' then return 93;
+  if ch = '^' then return 94;
+  if ch = '_' then return 95;
+  if ch = '`' then return 96;
+  if ch = '{' then return 123;
+  if ch = '|' then return 124;
+  if ch = '}' then return 125;
+  if ch = '~' then return 126;
+
+  digits := '0123456789';
+  idx := aot_find(digits, ch);
+  if idx >= 0 then
+    return 48 + idx;
+
+  lower := 'abcdefghijklmnopqrstuvwxyz';
+  idx := aot_find(lower, ch);
+  if idx >= 0 then
+    return 97 + idx;
+
+  upper := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  idx := aot_find(upper, ch);
+  if idx >= 0 then
+    return 65 + idx;
+
+  return 63;
+end;
+
+function aot_csv_append(csv: string; v: integer): string;
+var s: string;
+begin
+  s := rt_int_to_str(v);
+  if csv = '' then
+    return s;
+  return concat(csv, concat(',', s));
+end;
+
+function aot_csv_str(s: string): string;
+var csv: string;
+i: integer;
+n: integer;
+begin
+  csv := '';
+  i := 0;
+  n := strlen(s);
+  while i < n do
+  begin
+    csv := aot_csv_append(csv, aot_ascii(substr(s, i, 1)));
+    i := i + 1;
+  end;
+  return csv;
+end;
+
+function aot_csv_lines_with_newline(lines: vector of string): string;
+var csv: string;
+i: integer;
+n: integer;
+line_csv: string;
+begin
+  csv := '';
+  i := 0;
+  n := vector_len(lines);
+  while i < n do
+  begin
+    line_csv := aot_csv_str(vector_get(lines, i));
+    if line_csv <> '' then
+    begin
+      if csv = '' then
+        csv := line_csv
+      else
+        csv := concat(csv, concat(',', line_csv));
+    end;
+    csv := aot_csv_append(csv, 10);
+    i := i + 1;
+  end;
+  return csv;
+end;
+
+function aot_windows_asm_lines(out_lines: vector of string): vector of string;
+var out: vector of string;
+i: integer;
+n: integer;
+line_csv: string;
+begin
+  out := vector_new_str();
+  out := vector_push(out, 'default rel');
+  out := vector_push(out, 'extern puts');
+  out := vector_push(out, 'global main');
+  out := vector_push(out, 'section .text');
+  out := vector_push(out, 'main:');
+  out := vector_push(out, '    sub rsp, 40');
+
+  i := 0;
+  n := vector_len(out_lines);
+  while i < n do
+  begin
+    out := vector_push(out, concat('    lea rcx, [rel msg', concat(rt_int_to_str(i), ']')));
+    out := vector_push(out, '    call puts');
+    i := i + 1;
+  end;
+
+  out := vector_push(out, '    xor eax, eax');
+  out := vector_push(out, '    add rsp, 40');
+  out := vector_push(out, '    ret');
+  if n > 0 then
+  begin
+    out := vector_push(out, 'section .rdata');
+    i := 0;
+    while i < n do
+    begin
+      line_csv := aot_csv_str(vector_get(out_lines, i));
+      line_csv := aot_csv_append(line_csv, 0);
+      out := vector_push(out, concat(concat('msg', rt_int_to_str(i)), concat(': db ', line_csv)));
+      i := i + 1;
+    end;
+  end;
+  return out;
+end;
+
+function aot_linux_asm_lines(out_lines: vector of string): vector of string;
+var out: vector of string;
+csv: string;
+begin
+  out := vector_new_str();
+  out := vector_push(out, 'default rel');
+  out := vector_push(out, 'global _start');
+  out := vector_push(out, 'section .text');
+  out := vector_push(out, '_start:');
+
+  if vector_len(out_lines) > 0 then
+  begin
+    out := vector_push(out, '    mov rax, 1');
+    out := vector_push(out, '    mov rdi, 1');
+    out := vector_push(out, '    lea rsi, [rel msg]');
+    out := vector_push(out, '    mov rdx, msg_len');
+    out := vector_push(out, '    syscall');
+  end;
+
+  out := vector_push(out, '    mov rax, 60');
+  out := vector_push(out, '    xor rdi, rdi');
+  out := vector_push(out, '    syscall');
+  if vector_len(out_lines) > 0 then
+  begin
+    out := vector_push(out, 'section .rodata');
+    csv := aot_csv_lines_with_newline(out_lines);
+    out := vector_push(out, concat('msg: db ', csv));
+    out := vector_push(out, 'msg_len equ $ - msg');
+  end;
+  return out;
+end;
+
+function aot_build_windows_script(asm_path: string; obj_path: string; bin_path: string; asm_lines: vector of string): string;
+var script: string;
+i: integer;
+n: integer;
+begin
+  script := '@echo off';
+  script := concat(script, ' & setlocal');
+  script := concat(script, concat(' & type nul > "', concat(asm_path, '"')));
+  i := 0;
+  n := vector_len(asm_lines);
+  while i < n do
+  begin
+    script := concat(script, concat(' & >> "', concat(asm_path, concat('" echo(', vector_get(asm_lines, i)))));
+    i := i + 1;
+  end;
+  script := concat(script, concat(' & (nasm -f win64 "', concat(asm_path, concat('" -o "', concat(obj_path, '")')))));
+  script := concat(script, concat(' && (gcc "', concat(obj_path, concat('" -o "', concat(bin_path, '")')))));
+  script := concat(script, concat(' && (echo ok: wrote ', concat(bin_path, ') || exit /b 1')));
+  return script;
+end;
+
+function aot_build_linux_script(asm_path: string; obj_path: string; bin_path: string; asm_lines: vector of string): string;
+var script: string;
+i: integer;
+n: integer;
+begin
+  script := 'set -eu';
+  script := concat(script, concat('; : > "', concat(asm_path, '"')));
+  i := 0;
+  n := vector_len(asm_lines);
+  while i < n do
+  begin
+    script := concat(script, concat('; echo "', concat(vector_get(asm_lines, i), concat('" >> "', concat(asm_path, '"')))));
+    i := i + 1;
+  end;
+  script := concat(script, concat('; nasm -f elf64 "', concat(asm_path, concat('" -o "', concat(obj_path, '"')))));
+  script := concat(script, concat(' && cc "', concat(obj_path, concat('" -o "', concat(bin_path, '"')))));
+  script := concat(script, concat(' && echo ok: wrote ', bin_path));
+  return script;
+end;
+
+begin
+end.

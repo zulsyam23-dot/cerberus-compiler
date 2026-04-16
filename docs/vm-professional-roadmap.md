@@ -1,78 +1,82 @@
 # Cerberus VM Professional Roadmap
 
-Dokumen ini menjadi peta teknis agar VM Cerberus bisa mandiri, stabil, dan siap jadi fondasi bahasa yang berdiri sendiri.
+Roadmap ini disusun dari status kode saat ini agar pengembangan VM tetap fokus: aman, bisa diprediksi, dan membawa Cerberus menuju toolchain yang benar-benar mandiri.
 
-## Tujuan Utama
+## Kondisi Saat Ini
 
-- Menjalankan bytecode Cerberus secara aman, deterministik, dan bisa diprediksi.
-- Menyediakan diagnostik runtime yang kuat untuk developer bahasa.
-- Menjadi fondasi untuk self-hosting (compiler/tooling berjalan di Cerberus VM).
-- Memiliki jalur evolusi jelas: interpreter stabil -> optimisasi -> JIT/Native backend.
+VM host Rust sudah relatif matang untuk baseline produksi internal:
 
-## Prinsip Arsitektur
+- validasi bytecode/script sebelum jalan
+- runtime limits (`steps`, `stack`, `call depth`)
+- operasi aritmetika kritis sudah hardened
+- dispatch dipisah per domain (`instr_core`, `instr_io`, `instr_collections`, dll)
+- ada unit/integration test dasar
+- runtime stdlib sudah bisa load artifact package versioned `cerberus_toolchain_v1` (`vm_text_script`)
 
-- Safety-first runtime: invalid bytecode tidak boleh menyebabkan panic/UB.
-- Resource bounded: eksekusi dibatasi (step/stack/call depth) agar aman.
-- Deterministic core: hasil eksekusi konsisten lintas mesin.
-- Evolvable ISA: set instruksi bisa bertambah tanpa mematahkan kompatibilitas.
-- Observability: error + stack trace + profil runtime harus jelas.
+Namun, kemandirian total belum tercapai karena runtime utama tetap dieksekusi oleh binary Rust.
 
-## Status Saat Ini (Sudah Diimplementasikan)
+## Kelebihan Teknis yang Sudah Ada
 
-- Bytecode validation sebelum VM start:
-  - validasi entry function
-  - validasi local index (`Load/Store/Read*`)
-  - validasi jump target (`Jump/JumpIfFalse`)
-  - validasi function call target (`Call`)
-  - validasi limit jumlah function/instruksi/local
-- Runtime limits bawaan:
-  - `max_steps`
-  - `max_stack_size`
-  - `max_call_depth`
-  - `max_locals_per_function`
-- Arithmetic hardening:
-  - `Add/Sub/Mul/Neg` pakai checked arithmetic
-  - `Div` aman dari division-by-zero + overflow
-- Runtime stack trace pada error.
-- Unit tests untuk validator, step limit, call-depth limit, dan division-by-zero.
+- Safety baseline sudah baik:
+  - invalid target / invalid index ditahan validator
+  - limit eksekusi mencegah runaway workload
+- Arsitektur modular:
+  - pemisahan instruksi per file mengurangi kompleksitas perubahan
+- Jalur self-host sudah terintegrasi:
+  - compiler Cerberus bisa jadi jalur compile default
+- Operability:
+  - CLI sudah mendukung run/dump/selfhost/native fallback
 
-## Fase Berikutnya
+## Kekurangan Teknis Kritis
 
-### Fase 1 - Runtime Contract dan ABI
+- Mandiri penuh belum tercapai:
+  - engine tetap host Rust, bukan runtime native Cerberus-only
+- Kontrak artifact belum formal:
+  - belum ada compatibility policy versi VM yang ketat dan terdokumentasi end-to-end
+- Test strategy belum seimbang:
+  - coverage CLI ada, tapi conformance suite lintas versi/runtime behavior masih minim
+- Tooling observability belum lengkap:
+  - belum ada profiler runtime dan analisis hot path yang sistematis
 
-- Definisikan versi bytecode (`magic + version + feature flags`).
-- Definisikan ABI fungsi builtin dan konvensi call stack.
-- Tambah verifier untuk stack effect (tinggi stack per basic block).
+## Prioritas Implementasi
 
-### Fase 2 - Object Model dan Memory Management
+### Fase A - Contract Stabil (Wajib)
 
-- Migrasi `Value` ke object model yang lebih seragam.
-- Implementasi heap arena/GC (awal: mark-sweep sederhana).
-- Pisahkan immutable/mutable structure untuk efisiensi copy.
+- Definisikan format artifact final:
+  - `magic`, `version`, `feature flags`, metadata runtime
+- Definisikan compatibility policy:
+  - forward/backward rules untuk loader dan instruksi
+- Definisikan ABI builtin yang versioned
 
-### Fase 3 - Eksekusi dan Performa
+### Fase B - Hardening + Conformance
 
-- Dispatch optimization (threaded dispatch / direct threaded style).
-- Constant pool untuk string literal agar mengurangi clone.
-- Inline cache untuk operasi koleksi dan call site panas.
-- Siapkan IR menengah untuk jalur JIT di masa depan.
+- Tambah conformance suite:
+  - parser script
+  - validator
+  - dispatch behavior
+  - limit enforcement
+- Tambah regression gates di CI untuk skenario self-host
 
-### Fase 4 - Standalone Runtime Capability
+### Fase C - Performance Baseline
 
-- Modul stdlib runtime resmi (io/fs/time/env) dengan contract jelas.
-- Sandbox mode opsional untuk batas akses file/env.
-- Packaging bytecode + manifest dependensi.
+- Tetapkan benchmark standar:
+  - compile latency
+  - run latency
+  - peak memory
+- Optimasi berdasarkan data:
+  - dispatch hot path
+  - alokasi string/value
+  - call overhead
 
-### Fase 5 - Tooling Profesional
+### Fase D - Standalone Capability
 
-- Disassembler dan inspector yang lebih kaya (CFG, stack effect).
-- Profiling hooks (instr count, hot function report).
-- Conformance test suite untuk kompatibilitas versi VM.
+- Turunkan peran Rust menjadi fallback mode.
+- Sediakan jalur distribusi toolchain yang menargetkan operasi harian tanpa ketergantungan host Rust penuh.
 
-## Definition of Done (VM Production Ready)
+## Definition of Done (VM Production + Mandiri)
 
-- Tidak ada panic runtime dari input bytecode valid maupun invalid.
-- Semua error runtime punya stack trace yang terbaca.
-- Ada compatibility policy untuk versi bytecode.
-- Ada benchmark suite + regression gate di CI.
-- Ada test matrix lintas OS untuk determinism.
+- Tidak ada panic dari input valid maupun invalid.
+- Semua error kritis punya context yang cukup untuk debugging.
+- Ada compatibility contract resmi lintas versi artifact.
+- Ada conformance suite + benchmark suite yang jadi quality gate.
+- Ada jalur operasi harian yang tidak mengandalkan runtime host Rust sebagai jalur utama.

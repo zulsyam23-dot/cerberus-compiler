@@ -971,6 +971,7 @@ fn builtin_call_instr(name: &str) -> Option<Instr> {
         "result_unwrap_err_int" => Some(Instr::ResUnwrapErrInt),
         "result_unwrap_err_bool" => Some(Instr::ResUnwrapErrBool),
         "result_unwrap_err_str" => Some(Instr::ResUnwrapErrStr),
+        "os_exec" => Some(Instr::OsExec),
         _ => None,
     }
 }

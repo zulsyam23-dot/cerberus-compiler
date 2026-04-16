@@ -1,0 +1,474 @@
+program vm_runtime_toolchain;
+uses helpers;
+
+function rt_tc_error(msg: string): string;
+begin
+  return concat('ERROR: toolchain artifact: ', msg);
+end;
+
+function rt_tc_find(hay: string; needle: string): integer;
+var i: integer;
+n: integer;
+m: integer;
+begin
+  n := strlen(hay);
+  m := strlen(needle);
+  if m = 0 then
+    return 0;
+  if n < m then
+    return -1;
+  i := 0;
+  while i <= n - m do
+  begin
+    if substr(hay, i, m) = needle then
+      return i;
+    i := i + 1;
+  end;
+  return -1;
+end;
+
+function rt_tc_header_normalize(s: string): string;
+var out: string;
+i: integer;
+n: integer;
+ch: string;
+begin
+  out := '';
+  i := 0;
+  n := strlen(s);
+  while i < n do
+  begin
+    ch := substr(s, i, 1);
+    if ch = ';' then
+      out := concat(out, ';')
+    else if rt_is_script_char(ch) then
+      out := concat(out, ch)
+    else
+      out := concat(out, ' ');
+    i := i + 1;
+  end;
+  return out;
+end;
+
+function rt_tc_split_header_tokens(header: string): vector of string;
+var out: vector of string;
+cur: string;
+i: integer;
+n: integer;
+ch: string;
+begin
+  out := vector_new_str();
+  cur := '';
+  header := rt_tc_header_normalize(header);
+  i := 0;
+  n := strlen(header);
+  while i < n do
+  begin
+    ch := substr(header, i, 1);
+    if ch = ';' then
+    begin
+      if rt_trim(cur) <> '' then
+        out := vector_push(out, rt_trim(cur));
+      cur := '';
+    end
+    else
+      cur := concat(cur, ch);
+    i := i + 1;
+  end;
+  if rt_trim(cur) <> '' then
+    out := vector_push(out, rt_trim(cur));
+  return out;
+end;
+
+function rt_tc_append_instr(src: string; instr: string): string;
+begin
+  if src = '' then
+    return instr;
+  return concat(concat(src, '; '), instr);
+end;
+
+function rt_tc_split_list(s: string; sep: string): vector of string;
+var out: vector of string;
+cur: string;
+i: integer;
+n: integer;
+ch: string;
+begin
+  out := vector_new_str();
+  cur := '';
+  i := 0;
+  n := strlen(s);
+  while i < n do
+  begin
+    ch := substr(s, i, 1);
+    if ch = sep then
+    begin
+      out := vector_push(out, rt_trim(cur));
+      cur := '';
+    end
+    else
+      cur := concat(cur, ch);
+    i := i + 1;
+  end;
+  out := vector_push(out, rt_trim(cur));
+  return out;
+end;
+
+function rt_tc_char_value(ch: string): integer;
+var idx: integer;
+digits: string;
+lower: string;
+upper: string;
+punct: string;
+begin
+  digits := '0123456789';
+  idx := rt_tc_find(digits, ch);
+  if idx >= 0 then
+    return idx + 1;
+
+  lower := 'abcdefghijklmnopqrstuvwxyz';
+  idx := rt_tc_find(lower, ch);
+  if idx >= 0 then
+    return idx + 11;
+
+  upper := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  idx := rt_tc_find(upper, ch);
+  if idx >= 0 then
+    return idx + 37;
+
+  punct := ' _@#-+*/=<>()[]:,.?!"$%&|\{}~;''';
+  idx := rt_tc_find(punct, ch);
+  if idx >= 0 then
+    return idx + 79;
+
+  return 251;
+end;
+
+function rt_tc_checksum(text: string): string;
+var n: integer;
+i: integer;
+sum1: integer;
+sum2: integer;
+v: integer;
+modv: integer;
+begin
+  n := strlen(text);
+  i := 0;
+  sum1 := 1;
+  sum2 := 0;
+  modv := 32003;
+  while i < n do
+  begin
+    v := rt_tc_char_value(substr(text, i, 1));
+    sum1 := sum1 + v;
+    while sum1 >= modv do
+      sum1 := sum1 - modv;
+    sum2 := sum2 + sum1;
+    while sum2 >= modv do
+      sum2 := sum2 - modv;
+    i := i + 1;
+  end;
+  return rt_int_to_str(sum2 * modv + sum1);
+end;
+
+function rt_toolchain_magic(): string;
+begin
+  return 'cerberus_toolchain_v1';
+end;
+
+function rt_toolchain_format_vm_text(): string;
+begin
+  return 'vm_text_script';
+end;
+
+function rt_toolchain_vm_version(): string;
+begin
+  return '1';
+end;
+
+function rt_toolchain_abi_version(): string;
+begin
+  return '1';
+end;
+
+function rt_toolchain_features_default(): string;
+begin
+  return 'core,io,collections,fs,time,strings';
+end;
+
+function rt_toolchain_artifact_kind(): string;
+begin
+  return 'vm_package';
+end;
+
+function rt_toolchain_toolchain_name(): string;
+begin
+  return 'cerberus_selfhost';
+end;
+
+function rt_toolchain_feature_supported(name: string): boolean;
+begin
+  return name = 'core' or
+         name = 'io' or
+         name = 'collections' or
+         name = 'fs' or
+         name = 'time' or
+         name = 'strings';
+end;
+
+function rt_toolchain_features_supported(spec: string): boolean;
+var parts: vector of string;
+n: integer;
+i: integer;
+item: string;
+begin
+  spec := rt_trim(spec);
+  if spec = '' then
+    return false;
+  parts := rt_tc_split_list(spec, ',');
+  n := vector_len(parts);
+  if n = 0 then
+    return false;
+  i := 0;
+  while i < n do
+  begin
+    item := rt_trim(vector_get(parts, i));
+    if item = '' then
+      return false;
+    if not rt_toolchain_feature_supported(item) then
+      return false;
+    i := i + 1;
+  end;
+  return true;
+end;
+
+function rt_toolchain_code_marker(): string;
+begin
+  return '::code::';
+end;
+
+function rt_toolchain_is_package(src: string): boolean;
+var marker_idx: integer;
+header: string;
+tokens: vector of string;
+begin
+  marker_idx := rt_tc_find(src, rt_toolchain_code_marker());
+  if marker_idx < 0 then
+    return false;
+  header := substr(src, 0, marker_idx);
+  tokens := rt_tc_split_header_tokens(header);
+  if vector_len(tokens) = 0 then
+    return false;
+  return vector_get(tokens, 0) = rt_toolchain_magic();
+end;
+
+function rt_toolchain_pack_script(script: string; entry: string; limit_steps: string; limit_stack: string; limit_call: string): string;
+var head: string;
+begin
+  head := concat(rt_toolchain_magic(), concat(';', rt_toolchain_format_vm_text()));
+  head := concat(head, concat(';vm=', rt_toolchain_vm_version()));
+  head := concat(head, concat(';abi=', rt_toolchain_abi_version()));
+  head := concat(head, concat(';features=', rt_toolchain_features_default()));
+  head := concat(head, concat(';artifact=', rt_toolchain_artifact_kind()));
+  head := concat(head, concat(';toolchain=', rt_toolchain_toolchain_name()));
+  head := concat(head, concat(';checksum=', rt_tc_checksum(script)));
+  if entry <> '' then
+    head := concat(head, concat(';entry=', entry));
+  if limit_steps <> '' then
+    head := concat(head, concat(';limit_steps=', limit_steps));
+  if limit_stack <> '' then
+    head := concat(head, concat(';limit_stack=', limit_stack));
+  if limit_call <> '' then
+    head := concat(head, concat(';limit_call=', limit_call));
+  return concat(concat(head, rt_toolchain_code_marker()), script);
+end;
+
+function rt_toolchain_resolve_with_mode(src: string; strict: boolean): string;
+var marker_idx: integer;
+header: string;
+payload: string;
+tokens: vector of string;
+n: integer;
+i: integer;
+line: string;
+fmt: string;
+entry: string;
+limit_steps: string;
+limit_stack: string;
+limit_call: string;
+vm_version: string;
+abi_version: string;
+features: string;
+checksum: string;
+artifact_kind: string;
+toolchain_name: string;
+has_vm: boolean;
+has_abi: boolean;
+has_features: boolean;
+has_checksum: boolean;
+has_artifact: boolean;
+has_toolchain: boolean;
+script: string;
+begin
+  marker_idx := rt_tc_find(src, rt_toolchain_code_marker());
+  if marker_idx < 0 then
+    return src;
+
+  header := substr(src, 0, marker_idx);
+  payload := substr(src, marker_idx + strlen(rt_toolchain_code_marker()), strlen(src) - marker_idx - strlen(rt_toolchain_code_marker()));
+  tokens := rt_tc_split_header_tokens(header);
+  n := vector_len(tokens);
+  if n < 2 then
+    return rt_tc_error('incomplete header');
+
+  if vector_get(tokens, 0) <> rt_toolchain_magic() then
+    return rt_tc_error('invalid magic');
+
+  fmt := vector_get(tokens, 1);
+  if fmt <> rt_toolchain_format_vm_text() then
+    return rt_tc_error(concat('unsupported format ', fmt));
+
+  entry := '';
+  limit_steps := '';
+  limit_stack := '';
+  limit_call := '';
+  vm_version := rt_toolchain_vm_version();
+  abi_version := rt_toolchain_abi_version();
+  features := rt_toolchain_features_default();
+  checksum := '';
+  artifact_kind := '';
+  toolchain_name := '';
+  has_vm := false;
+  has_abi := false;
+  has_features := false;
+  has_checksum := false;
+  has_artifact := false;
+  has_toolchain := false;
+  i := 2;
+  while i < n do
+  begin
+    line := vector_get(tokens, i);
+    if rt_starts_with(line, 'vm=') then
+    begin
+      vm_version := rt_trim(substr(line, 3, strlen(line) - 3));
+      has_vm := true;
+    end
+    else if rt_starts_with(line, 'abi=') then
+    begin
+      abi_version := rt_trim(substr(line, 4, strlen(line) - 4));
+      has_abi := true;
+    end
+    else if rt_starts_with(line, 'features=') then
+    begin
+      features := rt_trim(substr(line, 9, strlen(line) - 9));
+      has_features := true;
+    end
+    else if rt_starts_with(line, 'artifact=') then
+    begin
+      artifact_kind := rt_trim(substr(line, 9, strlen(line) - 9));
+      has_artifact := true;
+    end
+    else if rt_starts_with(line, 'toolchain=') then
+    begin
+      toolchain_name := rt_trim(substr(line, 10, strlen(line) - 10));
+      has_toolchain := true;
+    end
+    else if rt_starts_with(line, 'checksum=') then
+    begin
+      checksum := rt_trim(substr(line, 9, strlen(line) - 9));
+      has_checksum := true;
+    end
+    else if rt_starts_with(line, 'entry=') then
+      entry := rt_trim(substr(line, 6, strlen(line) - 6))
+    else if rt_starts_with(line, 'limit_steps=') then
+      limit_steps := rt_trim(substr(line, 12, strlen(line) - 12))
+    else if rt_starts_with(line, 'limit_stack=') then
+      limit_stack := rt_trim(substr(line, 12, strlen(line) - 12))
+    else if rt_starts_with(line, 'limit_call=') then
+      limit_call := rt_trim(substr(line, 11, strlen(line) - 11))
+    else
+      return rt_tc_error(concat('unknown header field ', line));
+    i := i + 1;
+  end;
+
+  if rt_trim(payload) = '' then
+    return rt_tc_error('empty payload');
+
+  if not rt_is_int_token(vm_version) then
+    return rt_tc_error('vm must be integer');
+  if rt_parse_int(vm_version) <> rt_parse_int(rt_toolchain_vm_version()) then
+    return rt_tc_error(concat('unsupported vm version ', vm_version));
+  if not rt_is_int_token(abi_version) then
+    return rt_tc_error('abi must be integer');
+  if rt_parse_int(abi_version) <> rt_parse_int(rt_toolchain_abi_version()) then
+    return rt_tc_error(concat('unsupported abi version ', abi_version));
+  if not rt_toolchain_features_supported(features) then
+    return rt_tc_error(concat('unsupported features ', features));
+  if has_artifact and artifact_kind <> rt_toolchain_artifact_kind() then
+    return rt_tc_error(concat('unsupported artifact ', artifact_kind));
+  if has_toolchain and rt_trim(toolchain_name) = '' then
+    return rt_tc_error('toolchain must not be empty');
+  if checksum <> '' then
+  begin
+    if not rt_is_int_token(checksum) then
+      return rt_tc_error('checksum must be integer');
+    if checksum <> rt_tc_checksum(payload) then
+      return rt_tc_error('checksum mismatch');
+  end;
+  if strict then
+  begin
+    if not has_vm then
+      return rt_tc_error('missing header field vm');
+    if not has_abi then
+      return rt_tc_error('missing header field abi');
+    if not has_features then
+      return rt_tc_error('missing header field features');
+    if not has_artifact then
+      return rt_tc_error('missing header field artifact');
+    if not has_toolchain then
+      return rt_tc_error('missing header field toolchain');
+    if not has_checksum then
+      return rt_tc_error('missing header field checksum');
+  end;
+
+  if limit_steps <> '' and not rt_is_int_token(limit_steps) then
+    return rt_tc_error('limit_steps must be integer');
+  if limit_stack <> '' and not rt_is_int_token(limit_stack) then
+    return rt_tc_error('limit_stack must be integer');
+  if limit_call <> '' and not rt_is_int_token(limit_call) then
+    return rt_tc_error('limit_call must be integer');
+
+  script := concat('@cerberus_vm ', vm_version);
+  if entry <> '' then
+    script := rt_tc_append_instr(script, concat('@entry ', entry));
+  if limit_steps <> '' then
+    script := rt_tc_append_instr(script, concat('@limit_steps ', limit_steps));
+  if limit_stack <> '' then
+    script := rt_tc_append_instr(script, concat('@limit_stack ', limit_stack));
+  if limit_call <> '' then
+    script := rt_tc_append_instr(script, concat('@limit_call ', limit_call));
+  script := rt_tc_append_instr(script, payload);
+  return script;
+end;
+
+function rt_toolchain_strict_enabled(): boolean;
+var s: string;
+begin
+  if not env_has('CERBERUS_TOOLCHAIN_STRICT') then
+    return false;
+  s := rt_trim(env_get('CERBERUS_TOOLCHAIN_STRICT'));
+  return s = '1' or s = 'true' or s = 'TRUE' or s = 'yes' or s = 'YES' or s = 'on' or s = 'ON';
+end;
+
+function rt_toolchain_resolve_strict(src: string): string;
+begin
+  return rt_toolchain_resolve_with_mode(src, true);
+end;
+
+function rt_toolchain_resolve(src: string): string;
+begin
+  return rt_toolchain_resolve_with_mode(src, rt_toolchain_strict_enabled());
+end;
+
+begin
+end.

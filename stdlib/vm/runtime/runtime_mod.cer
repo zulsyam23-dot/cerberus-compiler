@@ -21,9 +21,34 @@ begin
   return vm_runtime_run_file(path);
 end;
 
+function rt_vm_runtime_run_file_strict(path: string): string;
+begin
+  return vm_runtime_run_file_strict(path);
+end;
+
 function rt_vm_runtime_default_steps(): integer;
 begin
   return vm_runtime_default_steps();
+end;
+
+function rt_vm_runtime_toolchain_pack(script: string; entry: string; limit_steps: string; limit_stack: string; limit_call: string): string;
+begin
+  return vm_runtime_toolchain_pack(script, entry, limit_steps, limit_stack, limit_call);
+end;
+
+function rt_vm_runtime_toolchain_resolve(src: string): string;
+begin
+  return vm_runtime_toolchain_resolve(src);
+end;
+
+function rt_vm_runtime_toolchain_resolve_strict(src: string): string;
+begin
+  return vm_runtime_toolchain_resolve_strict(src);
+end;
+
+function rt_vm_runtime_toolchain_is_package(src: string): boolean;
+begin
+  return vm_runtime_toolchain_is_package(src);
 end;
 
 function rt_vm_runtime_self_test(): boolean;

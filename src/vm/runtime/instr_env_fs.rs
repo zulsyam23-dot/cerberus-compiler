@@ -66,6 +66,26 @@ impl Vm {
                 }
                 self.stack.push(Value::Vector(out));
             }
+            Instr::OsExec => {
+                let command = match pop(&mut self.stack)? {
+                    Value::Str(s) => s,
+                    _ => return Err(CompileError::new_simple("os_exec: expected string command")),
+                };
+                let status = if cfg!(windows) {
+                    std::process::Command::new("cmd")
+                        .arg("/C")
+                        .arg(&command)
+                        .status()
+                } else {
+                    std::process::Command::new("sh")
+                        .arg("-lc")
+                        .arg(&command)
+                        .status()
+                }
+                .map_err(|e| CompileError::new_simple(format!("os_exec failed: {e}")))?;
+                let exit_code = status.code().unwrap_or(-1);
+                self.stack.push(Value::Int(exit_code as i64));
+            }
             _ => unreachable!("invalid env/fs instruction"),
         }
         Ok(())

@@ -159,6 +159,7 @@ fn encode_instr(buf: &mut Vec<u8>, instr: &Instr) {
         Instr::PathJoin => buf.push(OpCode::PathJoin as u8),
         Instr::FsExists => buf.push(OpCode::FsExists as u8),
         Instr::FsListDir => buf.push(OpCode::FsListDir as u8),
+        Instr::OsExec => buf.push(OpCode::OsExec as u8),
         Instr::NowTimestamp => buf.push(OpCode::NowTimestamp as u8),
         Instr::SleepMs => buf.push(OpCode::SleepMs as u8),
         Instr::LogStr => buf.push(OpCode::LogStr as u8),

@@ -254,6 +254,7 @@ pub enum OpCode {
     MetaBcLabel = 251,
     MetaBcJump = 252,
     MetaBcJumpIfFalse = 253,
+    OsExec = 254,
     Halt = 255,
 }
 
@@ -368,6 +369,7 @@ pub enum Instr {
     PathJoin,
     FsExists,
     FsListDir,
+    OsExec,
     NowTimestamp,
     SleepMs,
     LogStr,

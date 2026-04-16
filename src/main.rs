@@ -1,3 +1,4 @@
+mod aot;
 mod ast;
 mod bytecode;
 mod codegen;
@@ -19,30 +20,86 @@ use parser::Parser;
 
 fn main() -> anyhow::Result<()> {
     let mut args = env::args().skip(1).collect::<Vec<_>>();
+    if let Some(sidecar) = resolve_sidecar_package_path() {
+        if !args.is_empty() && args[0] == "--compiler" {
+            args.remove(0);
+        } else {
+            let sidecar_path = sidecar.to_string_lossy().to_string();
+            if let Err(e) = run_vm_text_script(&sidecar_path, args, true, None) {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+            return Ok(());
+        }
+    }
+    if !args.is_empty() && (args[0] == "--help" || args[0] == "-h" || args[0] == "help") {
+        print_cli_usage();
+        return Ok(());
+    }
     if args.is_empty() {
-        eprintln!("usage: cerberus-compiler <input> [output]");
-        eprintln!(
-            "   or: cerberus-compiler run [--limit-steps N] [--limit-stack N] [--limit-call N] <bytecode> [-- <args>]"
-        );
-        eprintln!("   or: cerberus-compiler dump <bytecode>");
-        eprintln!(
-            "   or: cerberus-compiler selfhost [--run] [--no-typecheck|--bootstrap] [--no-runtime-cache] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output] [-- <args>]"
-        );
-        eprintln!(
-            "   or: cerberus-compiler [--native] [--run] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output]"
-        );
-        eprintln!(
-            "   or: cerberus-compiler [--native] [--run] [--no-typecheck|--bootstrap] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output]"
-        );
-        eprintln!(
-            "   or: cerberus-compiler [--no-runtime-cache] [--limit-steps N] [--limit-stack N] [--limit-call N] <vm-script.cer> -- <args>"
-        );
-        eprintln!("   or: cerberus-compiler <vm-script.cer> -- <args>");
-        eprintln!(
-            "   or: cerberus-compiler [--native] [--run] [--no-typecheck|--bootstrap] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output] -- <args>"
-        );
-        eprintln!("note: default compile path is selfhosted; use --native for Rust pipeline");
+        print_cli_usage();
         std::process::exit(1);
+    }
+
+    if args[0] == "aot" {
+        let mut backend = aot::AotBackend::Auto;
+        let mut pos = 1usize;
+        while pos < args.len() {
+            let cur = &args[pos];
+            if cur == "--backend" {
+                if pos + 1 >= args.len() {
+                    eprintln!("error: --backend requires a value (auto|asm|rust)");
+                    std::process::exit(1);
+                }
+                backend = match aot::AotBackend::parse(&args[pos + 1]) {
+                    Some(v) => v,
+                    None => {
+                        eprintln!(
+                            "error: unknown aot backend '{}', expected auto|asm|rust",
+                            args[pos + 1]
+                        );
+                        std::process::exit(1);
+                    }
+                };
+                pos += 2;
+                continue;
+            }
+            break;
+        }
+        if args.len() - pos != 2 {
+            eprintln!(
+                "usage: cerberus-compiler aot [--backend auto|asm|rust] <vm-script.cer|package.crt> <out.exe>"
+            );
+            std::process::exit(1);
+        }
+        let input_path = Path::new(&args[pos]);
+        let output_path = Path::new(&args[pos + 1]);
+        let build_res = if backend == aot::AotBackend::Auto {
+            aot::compile_vm_file_to_native_exe(input_path, output_path)
+        } else {
+            aot::compile_vm_file_to_native_exe_with_backend(input_path, output_path, backend)
+        };
+        if let Err(e) = build_res {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+        println!(
+            "wrote native exe {} (backend: {})",
+            output_path.display(),
+            backend.as_str()
+        );
+        return Ok(());
+    }
+    if args[0] == "pack"
+        || args[0] == "build"
+        || args[0] == "bundle"
+        || args[0] == "aot-selfhost"
+    {
+        if let Err(e) = run_toolchain_command(args) {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+        return Ok(());
     }
 
     if args[0] == "run" {
@@ -328,14 +385,15 @@ fn main() -> anyhow::Result<()> {
         .with_context(|| format!("failed to read {}", input_path))?;
 
     let vm_script_mode = is_vm_text_script(&source);
-    if !run_after && !vm_script_mode && exec_limits_set && force_native {
+    let vm_package_mode = is_vm_toolchain_package(&source);
+    if !run_after && !vm_script_mode && !vm_package_mode && exec_limits_set && force_native {
         eprintln!("note: execution limits are ignored without --run");
     }
 
-    if vm_script_mode {
+    if vm_script_mode || vm_package_mode {
         if output_given {
             eprintln!(
-                "note: output file is ignored in @cerberus_vm script mode; running script directly"
+                "note: output file is ignored in VM script/package mode; running input directly"
             );
         }
         if let Err(e) = run_vm_text_script(
@@ -395,6 +453,65 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn print_cli_usage() {
+    eprintln!("usage: cerberus-compiler <input> [output]");
+    eprintln!(
+        "   or: cerberus-compiler run [--limit-steps N] [--limit-stack N] [--limit-call N] <bytecode> [-- <args>]"
+    );
+    eprintln!("   or: cerberus-compiler dump <bytecode>");
+    eprintln!(
+        "   or: cerberus-compiler selfhost [--run] [--no-typecheck|--bootstrap] [--no-runtime-cache] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output] [-- <args>]"
+    );
+    eprintln!(
+        "   or: cerberus-compiler [--native] [--run] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output]"
+    );
+    eprintln!(
+        "   or: cerberus-compiler [--native] [--run] [--no-typecheck|--bootstrap] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output]"
+    );
+    eprintln!(
+        "   or: cerberus-compiler aot [--backend auto|asm|rust] <vm-script.cer|package.crt> <out.exe>"
+    );
+    eprintln!(
+        "   or: cerberus-compiler pack <vm-script.cer> [out.crt] [toolchain opts]"
+    );
+    eprintln!(
+        "   or: cerberus-compiler build <vm-script.cer> [app-name] [toolchain opts]"
+    );
+    eprintln!("   or: cerberus-compiler bundle <vm-script.cer|package.crt> <app-name> [--target-dir <dir>]");
+    eprintln!(
+        "   or: cerberus-compiler aot-selfhost <vm-script.cer|package.crt> <out.asm> [toolchain opts]"
+    );
+    eprintln!(
+        "   or: cerberus-compiler [--no-runtime-cache] [--limit-steps N] [--limit-stack N] [--limit-call N] <vm-script.cer|package.crt> -- <args>"
+    );
+    eprintln!("   or: cerberus-compiler <vm-script.cer|package.crt> -- <args>");
+    eprintln!(
+        "   or: cerberus-compiler [--native] [--run] [--no-typecheck|--bootstrap] [--limit-steps N] [--limit-stack N] [--limit-call N] <input> [output] -- <args>"
+    );
+    eprintln!("note: default compile path is selfhosted; use --native for Rust pipeline");
+    eprintln!(
+        "note: renamed binary + sidecar <name>.crt runs as app mode (use --compiler to force compiler mode)"
+    );
+    eprintln!("note: aot is currently a minimal native backend for VM script subset");
+    eprintln!("note: pack/build/bundle logic is delegated to stdlib/toolchain.cer");
+}
+
+fn run_toolchain_command(mut toolchain_args: Vec<String>) -> anyhow::Result<()> {
+    let mut cache_enabled = true;
+    toolchain_args.retain(|arg| {
+        if arg == "--no-runtime-cache" {
+            cache_enabled = false;
+            false
+        } else {
+            true
+        }
+    });
+    let toolchain_path = resolve_toolchain_entry_path()
+        .ok_or_else(|| anyhow::anyhow!("could not locate stdlib/toolchain.cer"))?;
+    let toolchain_bc = load_or_compile_toolchain_bytecode(&toolchain_path, cache_enabled)?;
+    run_compiled_bytecode(&toolchain_bc, toolchain_args, None)
 }
 
 fn parse_positive_u64(flag: &str, value: &str) -> u64 {
@@ -560,6 +677,28 @@ fn load_or_compile_compiler_bytecode(
     Ok(compiler_bc)
 }
 
+fn load_or_compile_toolchain_bytecode(
+    toolchain_path: &Path,
+    use_toolchain_cache: bool,
+) -> anyhow::Result<bytecode::Bytecode> {
+    let cache_path = toolchain_cache_path(toolchain_path);
+    let cache_path_str = cache_path.to_string_lossy();
+    let source_root = toolchain_path.parent().unwrap_or_else(|| Path::new("."));
+    if use_toolchain_cache && is_cache_fresh(&cache_path, source_root) {
+        if let Ok(cached) = bytecode::read_bytecode(&cache_path_str) {
+            return Ok(cached);
+        }
+    }
+
+    let toolchain_src = fs::read_to_string(toolchain_path)
+        .with_context(|| format!("failed to read {}", toolchain_path.display()))?;
+    let toolchain_bc = compile_source_to_bytecode(&toolchain_src, toolchain_path, false)?;
+    if use_toolchain_cache {
+        let _ = bytecode::write_bytecode(&cache_path_str, &toolchain_bc);
+    }
+    Ok(toolchain_bc)
+}
+
 fn runtime_cache_path(runtime_path: &Path) -> std::path::PathBuf {
     runtime_path
         .parent()
@@ -572,6 +711,13 @@ fn compiler_cache_path(compiler_path: &Path) -> std::path::PathBuf {
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .join(".compiler_cache.cerb")
+}
+
+fn toolchain_cache_path(toolchain_path: &Path) -> std::path::PathBuf {
+    toolchain_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(".toolchain_cache.cerb")
 }
 
 fn is_runtime_cache_fresh(runtime_path: &Path, cache_path: &Path) -> bool {
@@ -632,6 +778,11 @@ fn resolve_runtime_entry_path() -> Option<std::path::PathBuf> {
 
 fn resolve_compiler_entry_path() -> Option<std::path::PathBuf> {
     resolve_stdlib_entry_path(&["compiler.cer"])
+}
+
+fn resolve_toolchain_entry_path() -> Option<std::path::PathBuf> {
+    resolve_stdlib_entry_path(&["toolchain.cer"])
+        .or_else(|| resolve_stdlib_entry_path(&["vm", "runtime", "toolchain.cer"]))
 }
 
 fn resolve_stdlib_entry_path(relative: &[&str]) -> Option<std::path::PathBuf> {
@@ -734,6 +885,41 @@ fn is_vm_text_script(source: &str) -> bool {
         return is_vm_token(&token.to_ascii_lowercase());
     }
     false
+}
+
+fn is_vm_toolchain_package(source: &str) -> bool {
+    let trimmed = source.trim_start();
+    trimmed.starts_with("cerberus_toolchain_v1") && trimmed.contains("::code::")
+}
+
+fn resolve_sidecar_package_path() -> Option<std::path::PathBuf> {
+    if sidecar_mode_disabled() {
+        return None;
+    }
+    let exe = std::env::current_exe().ok()?;
+    let stem = exe.file_stem().and_then(|s| s.to_str())?;
+    if is_compiler_binary_name(stem) {
+        return None;
+    }
+    let candidate = exe.with_file_name(format!("{stem}.crt"));
+    if candidate.exists() {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+fn sidecar_mode_disabled() -> bool {
+    if let Ok(raw) = std::env::var("CERBERUS_APP_DISABLE") {
+        let v = raw.trim().to_ascii_lowercase();
+        return v == "1" || v == "true" || v == "yes" || v == "on";
+    }
+    false
+}
+
+fn is_compiler_binary_name(name: &str) -> bool {
+    let s = name.to_ascii_lowercase();
+    s == "cerberus-compiler" || s == "cerberus_compiler" || s == "cerberuscompiler"
 }
 
 fn resolve_module_path(base: &Path, name: &str) -> Option<std::path::PathBuf> {

@@ -1,4 +1,4 @@
-program vm_mod;
+program vm;
 uses runtime_mod;
 
 function vm_available(): boolean;
@@ -55,6 +55,5 @@ function vm_self_test(): boolean;
 begin
   return rt_vm_runtime_self_test();
 end;
-
 begin
 end.

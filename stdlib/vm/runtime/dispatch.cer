@@ -1,5 +1,5 @@
 program vm_runtime_dispatch;
-uses io, helpers, value, validate, runtime_ops;
+uses io, helpers, value, validate, runtime_ops, toolchain;
 
 function rt_frame_pack(ret_ip: integer; locals: vector of string): string;
 begin
@@ -882,11 +882,27 @@ begin
   return '';
 end;
 
-function runtime_run_file(path: string): string;
+function runtime_run_file_mode(path: string; strict: boolean): string;
 var src: string;
 begin
   src := rt_io_read(path);
+  if strict then
+    src := rt_toolchain_resolve_strict(src)
+  else
+    src := rt_toolchain_resolve(src);
+  if rt_starts_with(src, 'ERROR:') then
+    return src;
   return runtime_exec_text(src);
+end;
+
+function runtime_run_file(path: string): string;
+begin
+  return runtime_run_file_mode(path, false);
+end;
+
+function runtime_run_file_strict(path: string): string;
+begin
+  return runtime_run_file_mode(path, true);
 end;
 
 begin
