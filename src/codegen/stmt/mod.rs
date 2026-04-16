@@ -1,8 +1,8 @@
 mod assign;
 mod block;
+mod builtins;
 mod call;
 mod control;
-mod builtins;
 
 use crate::ast::{Block, Stmt};
 use crate::error::CompileError;

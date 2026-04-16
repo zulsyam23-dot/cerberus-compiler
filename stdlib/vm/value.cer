@@ -1,0 +1,32 @@
+program vm_value;
+uses runtime_value;
+function vm_value_int(v: integer): string;
+begin
+  return rt_tag_int(v);
+end;
+function vm_value_bool(v: boolean): string;
+begin
+  return rt_tag_bool(v);
+end;
+function vm_value_str(v: string): string;
+begin
+  return rt_tag_str(v);
+end;
+function vm_value_as_int(v: string): integer;
+begin
+  return rt_int(v);
+end;
+function vm_value_as_bool(v: string): boolean;
+begin
+  return rt_bool(v);
+end;
+function vm_value_as_str(v: string): string;
+begin
+  return rt_str(v);
+end;
+function vm_value_render(v: string): string;
+begin
+  return rt_render(v);
+end;
+begin
+end.

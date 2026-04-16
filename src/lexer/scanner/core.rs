@@ -2,8 +2,8 @@ use crate::error::{CompileError, Span};
 
 use super::super::keywords::keyword_kind;
 use super::super::token::{Token, TokenKind};
-use super::text::is_ident_start;
 use super::Lexer;
+use super::text::is_ident_start;
 
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {

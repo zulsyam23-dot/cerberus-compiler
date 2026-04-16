@@ -1,0 +1,16 @@
+program codegen_mod;
+uses codegen_impl;
+function codegen_mod_available(): boolean;
+begin
+  return codegen_impl_available();
+end;
+function codegen_mod_emit(ast: string): string;
+begin
+  return codegen_emit_text(ast);
+end;
+procedure codegen_mod_emit_to(ast: string; path: string);
+begin
+  codegen_emit_to_path(ast, path);
+end;
+begin
+end.

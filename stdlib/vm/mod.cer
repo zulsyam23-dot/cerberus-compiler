@@ -1,0 +1,35 @@
+program vm_mod;
+uses runtime_mod;
+
+function vm_available(): boolean;
+begin
+  return rt_vm_runtime_available();
+end;
+
+function vm_execute_text(src: string): string;
+begin
+  return rt_vm_runtime_run_text(src);
+end;
+
+function vm_execute_file(path: string): string;
+begin
+  return rt_vm_runtime_run_file(path);
+end;
+
+function vm_validate_script(src: string): string;
+begin
+  return rt_vm_runtime_validate(src);
+end;
+
+function vm_default_limit_steps(): integer;
+begin
+  return rt_vm_runtime_default_steps();
+end;
+
+function vm_self_test(): boolean;
+begin
+  return rt_vm_runtime_self_test();
+end;
+
+begin
+end.

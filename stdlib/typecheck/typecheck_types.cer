@@ -7,16 +7,40 @@ begin
   if t = 'boolean' then return 'bool';
   if t = 'string' then return 'string';
   if t = 'map' then return 'map<string,string>';
+  if t = 'optioninteger' then return tc_type_option('int');
+  if t = 'optionboolean' then return tc_type_option('bool');
+  if t = 'optionstring' then return tc_type_option('string');
+  if t = 'resultinteger' then return tc_type_result('int');
+  if t = 'resultboolean' then return tc_type_result('bool');
+  if t = 'resultstring' then return tc_type_result('string');
   if strlen(t) <= 8 then
     return t;
   if substr(t, 0, 8) = 'vectorof' then
     return tc_type_vector(tc_norm_type(substr(t, 8, strlen(t) - 8)));
+  if substr(t, 0, 8) = 'optionof' then
+    return tc_type_option(tc_norm_type(substr(t, 8, strlen(t) - 8)));
+  if substr(t, 0, 8) = 'resultof' then
+    return tc_type_result(tc_norm_type(substr(t, 8, strlen(t) - 8)));
+  if tc_is_option(t) then
+    return tc_type_option(tc_norm_type(tc_opt_inner(t)));
+  if tc_is_result(t) then
+    return tc_type_result(tc_norm_type(tc_res_inner(t)));
   return t;
 end;
 
 function tc_type_vector(inner: string): string;
 begin
   return concat('vector<', concat(inner, '>'));
+end;
+
+function tc_type_option(inner: string): string;
+begin
+  return concat('option<', concat(inner, '>'));
+end;
+
+function tc_type_result(inner: string): string;
+begin
+  return concat('result<', concat(inner, '>'));
 end;
 
 function tc_is_vector(t: string): boolean;
@@ -29,6 +53,34 @@ begin
 end;
 
 function tc_vec_inner(t: string): string;
+begin
+  return substr(t, 7, strlen(t) - 8);
+end;
+
+function tc_is_option(t: string): boolean;
+begin
+  if strlen(t) <= 8 then
+    return false;
+  if substr(t, 0, 7) <> 'option<' then
+    return false;
+  return substr(t, strlen(t) - 1, 1) = '>';
+end;
+
+function tc_opt_inner(t: string): string;
+begin
+  return substr(t, 7, strlen(t) - 8);
+end;
+
+function tc_is_result(t: string): boolean;
+begin
+  if strlen(t) <= 8 then
+    return false;
+  if substr(t, 0, 7) <> 'result<' then
+    return false;
+  return substr(t, strlen(t) - 1, 1) = '>';
+end;
+
+function tc_res_inner(t: string): string;
 begin
   return substr(t, 7, strlen(t) - 8);
 end;

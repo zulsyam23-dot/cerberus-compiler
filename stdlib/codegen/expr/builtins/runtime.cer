@@ -1,0 +1,8 @@
+program codegen_expr_builtins_runtime_mod;
+function cg_builtin_is_runtime(name: string): boolean;
+begin
+  return name = 'env_get' or name = 'env_has' or name = 'cwd' or name = 'path_join' or
+         name = 'fs_exists' or name = 'fs_listdir' or name = 'now_timestamp';
+end;
+begin
+end.

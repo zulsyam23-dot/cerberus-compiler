@@ -1,0 +1,12 @@
+program parser_mod;
+uses parser_state, parser_expr, parser_stmt, parser_entry;
+function parser_mod_parse_string(src: string): string;
+begin
+  return parse_string(src);
+end;
+function parser_mod_parse_tokens(tokens: vector of string): string;
+begin
+  return parse_tokens(tokens);
+end;
+begin
+end.

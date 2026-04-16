@@ -1,7 +1,7 @@
 use crate::bytecode::{Function, Instr, OpCode};
 use crate::error::CompileError;
 
-use super::util::{read_i64, read_str, read_u32, read_u8};
+use super::util::{read_i64, read_str, read_u8, read_u32};
 
 pub(super) fn read_function(buf: &[u8], cursor: &mut usize) -> Result<Function, CompileError> {
     let name = read_str(buf, cursor)?;

@@ -1,0 +1,44 @@
+program typecheck_types_mod;
+uses typecheck_types;
+function typecheck_type_norm(t: string): string;
+begin
+  return tc_norm_type(t);
+end;
+function typecheck_type_is_vector(t: string): boolean;
+begin
+  return tc_is_vector(t);
+end;
+function typecheck_type_vector(inner: string): string;
+begin
+  return tc_type_vector(inner);
+end;
+function typecheck_type_option(inner: string): string;
+begin
+  return tc_type_option(inner);
+end;
+function typecheck_type_result(inner: string): string;
+begin
+  return tc_type_result(inner);
+end;
+function typecheck_type_vec_inner(t: string): string;
+begin
+  return tc_vec_inner(t);
+end;
+function typecheck_type_is_option(t: string): boolean;
+begin
+  return tc_is_option(t);
+end;
+function typecheck_type_is_result(t: string): boolean;
+begin
+  return tc_is_result(t);
+end;
+function typecheck_type_opt_inner(t: string): string;
+begin
+  return tc_opt_inner(t);
+end;
+function typecheck_type_res_inner(t: string): string;
+begin
+  return tc_res_inner(t);
+end;
+begin
+end.

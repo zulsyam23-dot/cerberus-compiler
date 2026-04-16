@@ -1,0 +1,20 @@
+program bytecode_format;
+function bc_join_lines(lines: vector of string): string;
+var out: string;
+i: integer;
+n: integer;
+begin
+  out := '';
+  i := 0;
+  n := vector_len(lines);
+  while i < n do
+  begin
+    if i > 0 then
+      out := concat(out, '\n');
+    out := concat(out, vector_get(lines, i));
+    i := i + 1;
+  end;
+  return out;
+end;
+begin
+end.

@@ -1,0 +1,87 @@
+program vm_runtime_ops;
+
+function rt_op_is_directive(op: string): boolean;
+begin
+  return strlen(op) > 0 and substr(op, 0, 1) = '@';
+end;
+
+function rt_dir_is_known(op: string): boolean;
+begin
+  return op = '@cerberus_vm' or op = '@entry' or op = '@limit_steps' or op = '@limit_stack' or op = '@limit_call';
+end;
+
+function rt_dir_requires_arg(op: string): boolean;
+begin
+  return rt_dir_is_known(op);
+end;
+
+function rt_dir_requires_int_arg(op: string): boolean;
+begin
+  return op = '@cerberus_vm' or op = '@limit_steps' or op = '@limit_stack' or op = '@limit_call';
+end;
+
+function rt_op_is_control(op: string): boolean;
+begin
+  return op = 'jump' or op = 'jump_if_false' or op = 'call' or op = 'ret' or op = 'ret_val' or op = 'halt';
+end;
+
+function rt_op_is_const(op: string): boolean;
+begin
+  return op = 'const_int' or op = 'const_bool' or op = 'const_str';
+end;
+
+function rt_op_is_known(op: string): boolean;
+begin
+  return op = 'label' or op = 'halt' or op = 'nop' or
+         op = 'limit_steps' or op = 'limit_stack' or op = 'limit_call' or
+         op = 'locals' or
+         rt_op_is_const(op) or
+         op = 'load' or op = 'store' or
+         op = 'vec_new' or op = 'vec_len' or op = 'vec_get' or op = 'vec_set' or
+         op = 'vec_push' or op = 'vec_remove' or op = 'vec_last' or op = 'vec_pop' or
+         op = 'map_new' or op = 'map_len' or op = 'map_set' or op = 'map_get' or
+         op = 'map_has' or op = 'map_remove' or
+         op = 'add' or op = 'sub' or op = 'mul' or op = 'div' or op = 'neg' or
+         op = 'and' or op = 'or' or op = 'not' or
+         op = 'eq' or op = 'ne' or op = 'lt' or op = 'le' or op = 'gt' or op = 'ge' or
+         rt_op_is_control(op) or
+         op = 'println' or op = 'readfile' or op = 'writefile';
+end;
+
+function rt_op_requires_arg(op: string): boolean;
+begin
+  return op = 'label' or
+         op = 'limit_steps' or op = 'limit_stack' or op = 'limit_call' or
+         op = 'locals' or
+         rt_op_is_const(op) or
+         op = 'load' or op = 'store' or
+         op = 'jump' or op = 'jump_if_false' or op = 'call';
+end;
+
+function rt_op_forbids_arg(op: string): boolean;
+begin
+  return op = 'halt' or op = 'nop' or
+         op = 'vec_new' or op = 'vec_len' or op = 'vec_get' or op = 'vec_set' or
+         op = 'vec_push' or op = 'vec_remove' or op = 'vec_last' or op = 'vec_pop' or
+         op = 'map_new' or op = 'map_len' or op = 'map_set' or op = 'map_get' or
+         op = 'map_has' or op = 'map_remove' or
+         op = 'add' or op = 'sub' or op = 'mul' or op = 'div' or op = 'neg' or
+         op = 'and' or op = 'or' or op = 'not' or
+         op = 'eq' or op = 'ne' or op = 'lt' or op = 'le' or op = 'gt' or op = 'ge' or
+         op = 'ret' or op = 'ret_val' or
+         op = 'println' or op = 'readfile' or op = 'writefile';
+end;
+
+function rt_op_requires_int_arg(op: string): boolean;
+begin
+  return op = 'limit_steps' or op = 'limit_stack' or op = 'limit_call' or
+         op = 'locals' or op = 'load' or op = 'store';
+end;
+
+function rt_op_is_jump_target_arg(op: string): boolean;
+begin
+  return op = 'jump' or op = 'jump_if_false' or op = 'call';
+end;
+
+begin
+end.

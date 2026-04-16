@@ -1,0 +1,31 @@
+program runtime;
+uses dispatch, io;
+var script_path: string;
+err: string;
+function runtime_usage(): string;
+begin
+  return 'usage: runtime <program.cer>';
+end;
+function runtime_run(path: string): string;
+begin
+  if not rt_io_exists(path) then
+    return concat('ERROR: script not found: ', path);
+  return runtime_run_file(path);
+end;
+begin
+  if arg_count() < 1 then
+  begin
+    writeln(runtime_usage());
+    writeln('format: opcode script (newline-separated, ; optional)');
+    writeln('example: const_int 1');
+    writeln('         const_int 2');
+    writeln('         add');
+    writeln('         println');
+    writeln('         halt');
+    return;
+  end;
+  script_path := arg(0);
+  err := runtime_run(script_path);
+  if err <> '' then
+    writeln(err);
+end.

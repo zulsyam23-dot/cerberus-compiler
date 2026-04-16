@@ -1,0 +1,21 @@
+program bytecode_format_util;
+function bc_format_magic(): string;
+begin
+  return '@cerberus_bc1';
+end;
+function bc_format_starts_with(s: string; prefix: string): boolean;
+begin
+  if strlen(s) < strlen(prefix) then
+    return false;
+  return substr(s, 0, strlen(prefix)) = prefix;
+end;
+function bc_format_has_magic(payload: string): boolean;
+begin
+  return bc_format_starts_with(payload, concat(bc_format_magic(), '\n')) or payload = bc_format_magic();
+end;
+function bc_format_available(): boolean;
+begin
+  return true;
+end;
+begin
+end.

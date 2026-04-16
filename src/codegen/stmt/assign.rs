@@ -2,8 +2,8 @@ use crate::ast::{Assign, AssignIndex};
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::super::expr::emit_expr;
 use super::super::Codegen;
+use super::super::expr::emit_expr;
 
 pub(super) fn emit_assign(cg: &mut Codegen, a: &Assign) -> Result<(), CompileError> {
     let idx = cg.symbols.get(&a.name)?;

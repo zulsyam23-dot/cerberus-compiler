@@ -2,9 +2,9 @@ use crate::ast::{Assign, AssignIndex, CallStmt, IfStmt, Stmt, WhileStmt};
 use crate::error::CompileError;
 use crate::lexer::TokenKind;
 
+use super::Parser;
 use super::block::parse_compound_statement;
 use super::expr::parse_expr;
-use super::Parser;
 
 pub(crate) fn parse_statement(p: &mut Parser<'_>) -> Result<Stmt, CompileError> {
     match &p.current.kind {

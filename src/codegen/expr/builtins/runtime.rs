@@ -56,7 +56,9 @@ pub fn try_emit(cg: &mut Codegen, call: &CallExpr) -> Result<bool, CompileError>
         }
         "now_timestamp" => {
             if !call.args.is_empty() {
-                return Err(CompileError::new_simple("now_timestamp expects 0 arguments"));
+                return Err(CompileError::new_simple(
+                    "now_timestamp expects 0 arguments",
+                ));
             }
             cg.code.push(Instr::NowTimestamp);
             Ok(true)

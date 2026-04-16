@@ -1,0 +1,894 @@
+program vm_runtime_dispatch;
+uses io, helpers, value, validate, runtime_ops;
+
+function rt_frame_pack(ret_ip: integer; locals: vector of string): string;
+begin
+  return concat(concat(rt_int_to_str(ret_ip), ';'), rt_pack_vec(locals));
+end;
+
+function rt_frame_ret_ip(frame: string): integer;
+var i: integer;
+n: integer;
+begin
+  n := strlen(frame);
+  i := 0;
+  while i < n and substr(frame, i, 1) <> ';' do
+    i := i + 1;
+  if i = 0 then
+    return 0;
+  return rt_parse_int(substr(frame, 0, i));
+end;
+
+function rt_frame_locals(frame: string): vector of string;
+var i: integer;
+n: integer;
+begin
+  n := strlen(frame);
+  i := 0;
+  while i < n and substr(frame, i, 1) <> ';' do
+    i := i + 1;
+  if i >= n then
+    return vector_new_str();
+  return rt_unpack_vec(substr(frame, i + 1, n - i - 1));
+end;
+
+function rt_resolve_target(arg: string; labels: map): integer;
+begin
+  if rt_is_int_token(arg) then
+    return rt_parse_int(arg);
+  if map_has(labels, arg) then
+    return rt_parse_int(map_get(labels, arg));
+  return -1;
+end;
+
+function runtime_exec_text(src: string): string;
+var lines: vector of string;
+stk: vector of string;
+locals: vector of string;
+vecv: vector of string;
+map_flat: vector of string;
+frames: vector of string;
+labels: map;
+line: string;
+op: string;
+arg: string;
+a: string;
+b: string;
+key_s: string;
+val_s: string;
+frame: string;
+ip: integer;
+n: integer;
+i: integer;
+idx: integer;
+target: integer;
+loc_count: integer;
+ai: integer;
+bi: integer;
+ab: boolean;
+bb: boolean;
+ok_write: boolean;
+steps: integer;
+max_steps: integer;
+max_stack: integer;
+max_call: integer;
+entry_arg: string;
+err: string;
+begin
+  err := rt_validate_text(src);
+  if err <> '' then
+    return err;
+
+  lines := rt_split_lines(src);
+  stk := vector_new_str();
+  locals := rt_make_locals(16);
+  frames := vector_new_str();
+  labels := map_new();
+  ip := 0;
+  n := vector_len(lines);
+  err := '';
+  steps := 0;
+  max_steps := 1000000;
+  max_stack := 100000;
+  max_call := 4096;
+  entry_arg := '';
+
+  i := 0;
+  while i < n do
+  begin
+    line := vector_get(lines, i);
+    op := rt_line_op(line);
+    if op <> '' and op <> '#' then
+    begin
+      if rt_op_is_directive(op) then
+      begin
+        arg := rt_line_arg(line);
+        if op = '@entry' then
+        begin
+          entry_arg := arg;
+        end
+        else if op = '@limit_steps' then
+          max_steps := rt_parse_int(arg)
+        else if op = '@limit_stack' then
+          max_stack := rt_parse_int(arg)
+        else if op = '@limit_call' then
+          max_call := rt_parse_int(arg);
+      end
+      else if op = 'label' then
+      begin
+        arg := rt_line_arg(line);
+        labels := map_set(labels, arg, rt_int_to_str(i));
+      end;
+    end;
+    i := i + 1;
+  end;
+
+  if err = '' and entry_arg <> '' then
+  begin
+    target := rt_resolve_target(entry_arg, labels);
+    if target < 0 or target >= n then
+      err := concat('@entry: target not found ', entry_arg)
+    else
+      ip := target;
+  end;
+
+  while ip >= 0 and ip < n and err = '' do
+  begin
+    if steps >= max_steps then
+      err := concat('limit: step exceeded ', rt_int_to_str(max_steps))
+    else
+    begin
+      steps := steps + 1;
+
+      line := vector_get(lines, ip);
+      op := rt_line_op(line);
+      if op = '' or op = '#' or rt_op_is_directive(op) then
+        ip := ip + 1
+      else
+      begin
+        arg := rt_line_arg(line);
+
+      if op = 'label' then
+        ip := ip + 1
+      else if op = 'halt' then
+      begin
+        return '';
+      end
+      else if op = 'nop' then
+        ip := ip + 1
+      else if op = 'limit_steps' then
+      begin
+        if not rt_is_int_token(arg) then
+          err := 'limit_steps: expected integer'
+        else
+        begin
+          max_steps := rt_parse_int(arg);
+          if max_steps <= 0 then
+            err := 'limit_steps: must be > 0'
+          else
+            ip := ip + 1;
+        end;
+      end
+      else if op = 'limit_stack' then
+      begin
+        if not rt_is_int_token(arg) then
+          err := 'limit_stack: expected integer'
+        else
+        begin
+          max_stack := rt_parse_int(arg);
+          if max_stack <= 0 then
+            err := 'limit_stack: must be > 0'
+          else
+            ip := ip + 1;
+        end;
+      end
+      else if op = 'limit_call' then
+      begin
+        if not rt_is_int_token(arg) then
+          err := 'limit_call: expected integer'
+        else
+        begin
+          max_call := rt_parse_int(arg);
+          if max_call <= 0 then
+            err := 'limit_call: must be > 0'
+          else
+            ip := ip + 1;
+        end;
+      end
+      else if op = 'locals' then
+      begin
+        loc_count := rt_parse_int(arg);
+        if loc_count < 0 then
+          err := 'locals: negative count'
+        else
+        begin
+          locals := rt_make_locals(loc_count);
+          ip := ip + 1;
+        end;
+      end
+      else if op = 'const_int' then
+      begin
+        stk := vector_push(stk, rt_tag_int(rt_parse_int(arg)));
+        ip := ip + 1;
+      end
+      else if op = 'const_bool' then
+      begin
+        stk := vector_push(stk, rt_tag_bool(arg = 'true'));
+        ip := ip + 1;
+      end
+      else if op = 'const_str' then
+      begin
+        stk := vector_push(stk, rt_tag_str(rt_parse_str_literal(arg)));
+        ip := ip + 1;
+      end
+      else if op = 'load' then
+      begin
+        idx := rt_parse_int(arg);
+        if idx < 0 or idx >= vector_len(locals) then
+          err := 'load: invalid local index'
+        else
+        begin
+          stk := vector_push(stk, vector_get(locals, idx));
+          ip := ip + 1;
+        end;
+      end
+      else if op = 'store' then
+      begin
+        idx := rt_parse_int(arg);
+        if idx < 0 or idx >= vector_len(locals) then
+          err := 'store: invalid local index'
+        else if vector_len(stk) < 1 then
+          err := 'store: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          locals := vector_set(locals, idx, a);
+          ip := ip + 1;
+        end;
+      end
+      else if op = 'vec_new' then
+      begin
+        stk := vector_push(stk, rt_tag_vec(vector_new_str()));
+        ip := ip + 1;
+      end
+      else if op = 'vec_len' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'vec_len: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'v:') then
+            err := 'vec_len: expected vector'
+          else
+          begin
+            vecv := rt_vec(a);
+            stk := vector_push(stk, rt_tag_int(vector_len(vecv)));
+            ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'vec_get' then
+      begin
+        if vector_len(stk) < 2 then
+          err := 'vec_get: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'v:') then
+            err := 'vec_get: expected vector'
+          else if not rt_is_tag(b, 'i:') then
+            err := 'vec_get: expected integer index'
+          else
+          begin
+            idx := rt_int(b);
+            vecv := rt_vec(a);
+            if idx < 0 or idx >= vector_len(vecv) then
+              err := 'vec_get: index out of range'
+            else
+            begin
+              stk := vector_push(stk, vector_get(vecv, idx));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'vec_set' then
+      begin
+        if vector_len(stk) < 3 then
+          err := 'vec_set: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          frame := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(frame, 'v:') then
+            err := 'vec_set: expected vector'
+          else if not rt_is_tag(a, 'i:') then
+            err := 'vec_set: expected integer index'
+          else
+          begin
+            idx := rt_int(a);
+            vecv := rt_vec(frame);
+            if idx < 0 or idx >= vector_len(vecv) then
+              err := 'vec_set: index out of range'
+            else if not rt_vec_accepts(vecv, b) then
+              err := 'vec_set: element type mismatch'
+            else
+            begin
+              vecv := vector_set(vecv, idx, b);
+              stk := vector_push(stk, rt_tag_vec(vecv));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'vec_push' then
+      begin
+        if vector_len(stk) < 2 then
+          err := 'vec_push: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'v:') then
+            err := 'vec_push: expected vector'
+          else
+          begin
+            vecv := rt_vec(a);
+            if not rt_vec_accepts(vecv, b) then
+              err := 'vec_push: element type mismatch'
+            else
+            begin
+              vecv := vector_push(vecv, b);
+              stk := vector_push(stk, rt_tag_vec(vecv));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'vec_remove' then
+      begin
+        if vector_len(stk) < 2 then
+          err := 'vec_remove: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'v:') then
+            err := 'vec_remove: expected vector'
+          else if not rt_is_tag(b, 'i:') then
+            err := 'vec_remove: expected integer index'
+          else
+          begin
+            idx := rt_int(b);
+            vecv := rt_vec(a);
+            if idx < 0 or idx >= vector_len(vecv) then
+              err := 'vec_remove: index out of range'
+            else
+            begin
+              vecv := vector_remove(vecv, idx);
+              stk := vector_push(stk, rt_tag_vec(vecv));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'vec_last' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'vec_last: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'v:') then
+            err := 'vec_last: expected vector'
+          else
+          begin
+            vecv := rt_vec(a);
+            if vector_len(vecv) = 0 then
+              err := 'vec_last: empty vector'
+            else
+            begin
+              stk := vector_push(stk, vector_last(vecv));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'vec_pop' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'vec_pop: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'v:') then
+            err := 'vec_pop: expected vector'
+          else
+          begin
+            vecv := rt_vec(a);
+            if vector_len(vecv) = 0 then
+              err := 'vec_pop: empty vector'
+            else
+            begin
+              vecv := vector_pop(vecv);
+              stk := vector_push(stk, rt_tag_vec(vecv));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'map_new' then
+      begin
+        stk := vector_push(stk, rt_tag_map(vector_new_str()));
+        ip := ip + 1;
+      end
+      else if op = 'map_len' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'map_len: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'm:') then
+            err := 'map_len: expected map'
+          else
+          begin
+            map_flat := rt_map_flat(a);
+            if not rt_map_is_shape_ok(map_flat) then
+              err := 'map_len: invalid map payload'
+            else
+            begin
+              stk := vector_push(stk, rt_tag_int(vector_len(map_flat) / 2));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'map_set' then
+      begin
+        if vector_len(stk) < 3 then
+          err := 'map_set: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          frame := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(frame, 'm:') then
+            err := 'map_set: expected map'
+          else if not rt_is_tag(a, 's:') then
+            err := 'map_set: expected string key'
+          else if not rt_is_tag(b, 's:') then
+            err := 'map_set: expected string value'
+          else
+          begin
+            map_flat := rt_map_flat(frame);
+            if not rt_map_is_shape_ok(map_flat) then
+              err := 'map_set: invalid map payload'
+            else
+            begin
+              key_s := rt_str(a);
+              val_s := rt_str(b);
+              idx := rt_map_find(map_flat, key_s);
+              if idx < 0 then
+              begin
+                map_flat := vector_push(map_flat, key_s);
+                map_flat := vector_push(map_flat, val_s);
+              end
+              else
+                map_flat := vector_set(map_flat, idx + 1, val_s);
+              stk := vector_push(stk, rt_tag_map(map_flat));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'map_get' then
+      begin
+        if vector_len(stk) < 2 then
+          err := 'map_get: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'm:') then
+            err := 'map_get: expected map'
+          else if not rt_is_tag(b, 's:') then
+            err := 'map_get: expected string key'
+          else
+          begin
+            map_flat := rt_map_flat(a);
+            if not rt_map_is_shape_ok(map_flat) then
+              err := 'map_get: invalid map payload'
+            else
+            begin
+              key_s := rt_str(b);
+              idx := rt_map_find(map_flat, key_s);
+              if idx < 0 then
+                err := 'map_get: key not found'
+              else
+              begin
+                stk := vector_push(stk, rt_tag_str(vector_get(map_flat, idx + 1)));
+                ip := ip + 1;
+              end;
+            end;
+          end;
+        end;
+      end
+      else if op = 'map_has' then
+      begin
+        if vector_len(stk) < 2 then
+          err := 'map_has: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'm:') then
+            err := 'map_has: expected map'
+          else if not rt_is_tag(b, 's:') then
+            err := 'map_has: expected string key'
+          else
+          begin
+            map_flat := rt_map_flat(a);
+            if not rt_map_is_shape_ok(map_flat) then
+              err := 'map_has: invalid map payload'
+            else
+            begin
+              key_s := rt_str(b);
+              stk := vector_push(stk, rt_tag_bool(rt_map_find(map_flat, key_s) >= 0));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'map_remove' then
+      begin
+        if vector_len(stk) < 2 then
+          err := 'map_remove: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'm:') then
+            err := 'map_remove: expected map'
+          else if not rt_is_tag(b, 's:') then
+            err := 'map_remove: expected string key'
+          else
+          begin
+            map_flat := rt_map_flat(a);
+            if not rt_map_is_shape_ok(map_flat) then
+              err := 'map_remove: invalid map payload'
+            else
+            begin
+              key_s := rt_str(b);
+              idx := rt_map_find(map_flat, key_s);
+              if idx >= 0 then
+              begin
+                map_flat := vector_remove(map_flat, idx + 1);
+                map_flat := vector_remove(map_flat, idx);
+              end;
+              stk := vector_push(stk, rt_tag_map(map_flat));
+              ip := ip + 1;
+            end;
+          end;
+        end;
+      end
+      else if op = 'add' or op = 'sub' or op = 'mul' or op = 'div' then
+      begin
+        if vector_len(stk) < 2 then
+          err := concat(op, ': stack underflow')
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'i:') or not rt_is_tag(b, 'i:') then
+            err := concat(op, ': expected integer')
+          else
+          begin
+            ai := rt_int(a);
+            bi := rt_int(b);
+            if op = 'add' then
+              stk := vector_push(stk, rt_tag_int(ai + bi));
+            if op = 'sub' then
+              stk := vector_push(stk, rt_tag_int(ai - bi));
+            if op = 'mul' then
+              stk := vector_push(stk, rt_tag_int(ai * bi));
+            if op = 'div' then
+            begin
+              if bi = 0 then
+                err := 'div: division by zero'
+              else
+                stk := vector_push(stk, rt_tag_int(ai / bi));
+            end;
+            if err = '' then
+              ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'neg' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'neg: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'i:') then
+            err := 'neg: expected integer'
+          else
+          begin
+            stk := vector_push(stk, rt_tag_int(0 - rt_int(a)));
+            ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'and' or op = 'or' then
+      begin
+        if vector_len(stk) < 2 then
+          err := concat(op, ': stack underflow')
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'b:') or not rt_is_tag(b, 'b:') then
+            err := concat(op, ': expected boolean')
+          else
+          begin
+            ab := rt_bool(a);
+            bb := rt_bool(b);
+            if op = 'and' then
+              stk := vector_push(stk, rt_tag_bool(ab and bb))
+            else
+              stk := vector_push(stk, rt_tag_bool(ab or bb));
+            ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'not' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'not: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'b:') then
+            err := 'not: expected boolean'
+          else
+          begin
+            stk := vector_push(stk, rt_tag_bool(not rt_bool(a)));
+            ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'eq' or op = 'ne' then
+      begin
+        if vector_len(stk) < 2 then
+          err := concat(op, ': stack underflow')
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if op = 'eq' then
+            stk := vector_push(stk, rt_tag_bool(a = b))
+          else
+            stk := vector_push(stk, rt_tag_bool(a <> b));
+          ip := ip + 1;
+        end;
+      end
+      else if op = 'lt' or op = 'le' or op = 'gt' or op = 'ge' then
+      begin
+        if vector_len(stk) < 2 then
+          err := concat(op, ': stack underflow')
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'i:') or not rt_is_tag(b, 'i:') then
+            err := concat(op, ': expected integer')
+          else
+          begin
+            ai := rt_int(a);
+            bi := rt_int(b);
+            if op = 'lt' then
+              stk := vector_push(stk, rt_tag_bool(ai < bi));
+            if op = 'le' then
+              stk := vector_push(stk, rt_tag_bool(ai <= bi));
+            if op = 'gt' then
+              stk := vector_push(stk, rt_tag_bool(ai > bi));
+            if op = 'ge' then
+              stk := vector_push(stk, rt_tag_bool(ai >= bi));
+            ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'jump' then
+      begin
+        target := rt_resolve_target(arg, labels);
+        if target < 0 or target >= n then
+          err := concat('jump: target not found ', arg)
+        else
+          ip := target;
+      end
+      else if op = 'jump_if_false' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'jump_if_false: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 'b:') then
+            err := 'jump_if_false: expected boolean'
+          else
+          begin
+            if not rt_bool(a) then
+            begin
+              target := rt_resolve_target(arg, labels);
+              if target < 0 or target >= n then
+                err := concat('jump_if_false: target not found ', arg)
+              else
+                ip := target;
+            end
+            else
+              ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'call' then
+      begin
+        if vector_len(frames) >= max_call then
+          err := concat('limit: call depth exceeded ', rt_int_to_str(max_call))
+        else
+        begin
+          target := rt_resolve_target(arg, labels);
+          if target < 0 or target >= n then
+            err := concat('call: target not found ', arg)
+          else
+          begin
+            frames := vector_push(frames, rt_frame_pack(ip + 1, locals));
+            ip := target;
+          end;
+        end;
+      end
+      else if op = 'ret' then
+      begin
+        if vector_len(frames) = 0 then
+          return ''
+        else
+        begin
+          frame := vector_last(frames);
+          frames := vector_pop(frames);
+          locals := rt_frame_locals(frame);
+          ip := rt_frame_ret_ip(frame);
+        end;
+      end
+      else if op = 'ret_val' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'ret_val: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if vector_len(frames) = 0 then
+          begin
+            stk := vector_push(stk, a);
+            return '';
+          end
+          else
+          begin
+            frame := vector_last(frames);
+            frames := vector_pop(frames);
+            locals := rt_frame_locals(frame);
+            ip := rt_frame_ret_ip(frame);
+            stk := vector_push(stk, a);
+          end;
+        end;
+      end
+      else if op = 'println' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'println: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          writeln(rt_render(a));
+          ip := ip + 1;
+        end;
+      end
+      else if op = 'readfile' then
+      begin
+        if vector_len(stk) < 1 then
+          err := 'readfile: stack underflow'
+        else
+        begin
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 's:') then
+            err := 'readfile: expected string path'
+          else
+          begin
+            stk := vector_push(stk, rt_tag_str(rt_io_read(rt_str(a))));
+            ip := ip + 1;
+          end;
+        end;
+      end
+      else if op = 'writefile' then
+      begin
+        if vector_len(stk) < 2 then
+          err := 'writefile: stack underflow'
+        else
+        begin
+          b := vector_last(stk);
+          stk := vector_pop(stk);
+          a := vector_last(stk);
+          stk := vector_pop(stk);
+          if not rt_is_tag(a, 's:') or not rt_is_tag(b, 's:') then
+            err := 'writefile: expected string path/content'
+          else
+          begin
+            ok_write := rt_io_write(rt_str(a), rt_str(b));
+            stk := vector_push(stk, rt_tag_bool(ok_write));
+            ip := ip + 1;
+          end;
+        end;
+      end
+      else
+        err := concat('unknown opcode: ', op);
+
+        if err = '' and vector_len(stk) > max_stack then
+          err := concat('limit: stack exceeded ', rt_int_to_str(max_stack));
+      end;
+    end;
+  end;
+
+  if err <> '' then
+    return concat(concat('ERROR @ip=', concat(rt_int_to_str(ip), ': ')), err);
+  return '';
+end;
+
+function runtime_run_file(path: string): string;
+var src: string;
+begin
+  src := rt_io_read(path);
+  return runtime_exec_text(src);
+end;
+
+begin
+end.
+

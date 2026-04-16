@@ -1,0 +1,28 @@
+program lexer_scanner_mod;
+uses lexer_tokenize;
+function lex_scan(src: string): vector of string;
+begin
+  return lex_tokenize(src);
+end;
+function lex_scan_non_empty(src: string): vector of string;
+var toks: vector of string;
+out: vector of string;
+i: integer;
+n: integer;
+t: string;
+begin
+  toks := lex_tokenize(src);
+  out := vector_new_str();
+  i := 0;
+  n := vector_len(toks);
+  while i < n do
+  begin
+    t := vector_get(toks, i);
+    if t <> '' then
+      out := vector_push(out, t);
+    i := i + 1;
+  end;
+  return out;
+end;
+begin
+end.

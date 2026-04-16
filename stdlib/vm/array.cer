@@ -1,0 +1,7 @@
+program vm_array;
+function vm_array_empty(): vector of string;
+begin
+  return vector_new_str();
+end;
+begin
+end.

@@ -2,8 +2,8 @@ use crate::ast::CallExpr;
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::builtins;
 use super::super::Codegen;
+use super::builtins;
 
 pub fn emit_call_expr(cg: &mut Codegen, call: &CallExpr) -> Result<(), CompileError> {
     if builtins::try_emit(cg, call)? {

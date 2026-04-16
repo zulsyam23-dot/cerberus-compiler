@@ -1,0 +1,43 @@
+program bytecode_disasm_format;
+function bcd_int_to_str(v: integer): string;
+var digits: string;
+out: string;
+d: integer;
+q: integer;
+neg: boolean;
+begin
+  if v = 0 then
+    return '0';
+  digits := '0123456789';
+  out := '';
+  neg := false;
+  if v < 0 then
+  begin
+    neg := true;
+    v := 0 - v;
+  end;
+  while v > 0 do
+  begin
+    q := v / 10;
+    d := v - (q * 10);
+    out := concat(substr(digits, d, 1), out);
+    v := q;
+  end;
+  if neg then
+    out := concat('-', out);
+  return out;
+end;
+function bc_disasm_format_line(ip: integer; op: string; arg: string): string;
+var head: string;
+begin
+  head := concat(concat('[', bcd_int_to_str(ip)), '] ');
+  if arg = '' then
+    return concat(head, op);
+  return concat(concat(head, op), concat(' ', arg));
+end;
+function bc_disasm_format_no_arg(ip: integer; op: string): string;
+begin
+  return bc_disasm_format_line(ip, op, '');
+end;
+begin
+end.

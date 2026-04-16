@@ -1,9 +1,9 @@
-use crate::bytecode::{write_bytecode, Instr};
+use crate::bytecode::{Instr, write_bytecode};
 use crate::error::CompileError;
 
-use super::Vm;
 use super::super::ops::{pop, pop_bool, pop_int};
 use super::super::value::Value;
+use super::Vm;
 use std::env;
 
 impl Vm {
@@ -32,7 +32,11 @@ impl Vm {
             Instr::BcEmitPrintStr => {
                 let s = match pop(&mut self.stack)? {
                     Value::Str(s) => s,
-                    _ => return Err(CompileError::new_simple("bc_emit_print_str: expected string")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "bc_emit_print_str: expected string",
+                        ));
+                    }
                 };
                 let b = self
                     .builder
@@ -80,7 +84,11 @@ impl Vm {
             Instr::BcEmitConstStr => {
                 let v = match pop(&mut self.stack)? {
                     Value::Str(s) => s,
-                    _ => return Err(CompileError::new_simple("bc_emit_const_str: expected string")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "bc_emit_const_str: expected string",
+                        ));
+                    }
                 };
                 let b = self
                     .builder
@@ -861,10 +869,9 @@ impl Vm {
                 b.emit_bc_emit_fs_listdir()?;
             }
             Instr::BcEmitNowTimestampOp => {
-                let b = self
-                    .builder
-                    .as_mut()
-                    .ok_or_else(|| CompileError::new_simple("bc_emit_now_timestamp_op: no builder"))?;
+                let b = self.builder.as_mut().ok_or_else(|| {
+                    CompileError::new_simple("bc_emit_now_timestamp_op: no builder")
+                })?;
                 b.emit_bc_emit_now_timestamp()?;
             }
             Instr::MetaBcNew => {
@@ -934,7 +941,11 @@ impl Vm {
                 let param_count = pop_int(&mut self.stack)? as u32;
                 let name = match pop(&mut self.stack)? {
                     Value::Str(s) => s,
-                    _ => return Err(CompileError::new_simple("bc_func_begin: expected string name")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "bc_func_begin: expected string name",
+                        ));
+                    }
                 };
                 if env::var_os("CERBERUS_DEBUG_BOOTSTRAP").is_some() {
                     eprintln!("DEBUG: bc_func_begin {} {}", name, param_count);
@@ -963,7 +974,11 @@ impl Vm {
             Instr::BcEmitCall => {
                 let name = match pop(&mut self.stack)? {
                     Value::Str(s) => s,
-                    _ => return Err(CompileError::new_simple("bc_emit_call: expected string name")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "bc_emit_call: expected string name",
+                        ));
+                    }
                 };
                 let b = self
                     .builder

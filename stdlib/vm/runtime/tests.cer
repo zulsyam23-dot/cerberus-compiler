@@ -1,0 +1,109 @@
+program vm_runtime_tests;
+uses dispatch, validate, io, runtime_ops;
+
+function vm_rt_contains(hay: string; needle: string): boolean;
+var i: integer;
+n: integer;
+m: integer;
+begin
+  n := strlen(hay);
+  m := strlen(needle);
+  if m = 0 then
+    return true;
+  if n < m then
+    return false;
+  i := 0;
+  while i <= n - m do
+  begin
+    if substr(hay, i, m) = needle then
+      return true;
+    i := i + 1;
+  end;
+  return false;
+end;
+
+function vm_rt_expect_ok(src: string): boolean;
+begin
+  return runtime_exec_text(src) = '';
+end;
+
+function vm_rt_expect_error_has(src: string; needle: string): boolean;
+var err: string;
+begin
+  err := runtime_exec_text(src);
+  return err <> '' and vm_rt_contains(err, needle);
+end;
+
+function vm_runtime_test_validate_unknown_opcode(): boolean;
+var err: string;
+begin
+  err := rt_validate_text('unknown_op');
+  return err <> '' and vm_rt_contains(err, 'unknown opcode');
+end;
+
+function vm_runtime_test_limit_steps(): boolean;
+var src: string;
+begin
+  src := '@limit_steps 2; nop; nop; nop; halt;';
+  return vm_rt_expect_error_has(src, 'limit: step exceeded');
+end;
+
+function vm_runtime_test_basic_arith(): boolean;
+var src: string;
+begin
+  src := 'const_int 4; const_int 5; add; halt;';
+  return vm_rt_expect_ok(src);
+end;
+
+function vm_runtime_test_ops_classifier(): boolean;
+begin
+  return rt_op_is_control('jump') and
+         rt_op_is_const('const_int') and
+         rt_op_is_known('map_set') and
+         rt_op_is_directive('@entry') and
+         rt_dir_is_known('@limit_steps') and
+         rt_dir_requires_arg('@entry') and
+         rt_dir_requires_int_arg('@cerberus_vm') and
+         not rt_op_is_known('unknown_op');
+end;
+
+function vm_runtime_test_path_helpers(): boolean;
+var joined: string;
+base: string;
+name: string;
+begin
+  base := 'tmp';
+  name := 'demo.txt';
+  joined := rt_io_join(base, name);
+  return rt_io_basename(joined) = name and rt_io_dirname(joined) = base;
+end;
+
+function vm_runtime_tests_available(): boolean;
+begin
+  return true;
+end;
+
+function vm_runtime_tests_run(): boolean;
+begin
+  if not vm_runtime_test_validate_unknown_opcode() then
+    return false;
+  if not vm_runtime_test_limit_steps() then
+    return false;
+  if not vm_runtime_test_basic_arith() then
+    return false;
+  if not vm_runtime_test_ops_classifier() then
+    return false;
+  if not vm_runtime_test_path_helpers() then
+    return false;
+  return true;
+end;
+
+function vm_runtime_tests_report(): string;
+begin
+  if vm_runtime_tests_run() then
+    return 'ok';
+  return 'failed';
+end;
+
+begin
+end.

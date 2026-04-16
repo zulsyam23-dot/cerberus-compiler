@@ -1,0 +1,36 @@
+program typecheck_builtins_collections_mod;
+
+function tc_builtin_is_vector(name: string): boolean;
+begin
+  return name = 'vector_new' or name = 'vector_new_int' or name = 'vector_new_bool' or name = 'vector_new_str' or
+         name = 'vector_len' or name = 'vector_get' or name = 'vector_set' or name = 'vector_push' or
+         name = 'vector_remove' or name = 'vector_last' or name = 'vector_pop' or
+         name = 'vector_clear';
+end;
+
+function tc_builtin_is_stack(name: string): boolean;
+begin
+  return name = 'stack_new' or name = 'stack_len' or name = 'stack_push' or
+         name = 'stack_top' or name = 'stack_pop' or name = 'stack_clear';
+end;
+
+function tc_builtin_is_map(name: string): boolean;
+begin
+  return name = 'map_new' or name = 'map_len' or name = 'map_set' or
+         name = 'map_get' or name = 'map_has' or name = 'map_remove' or name = 'map_clear';
+end;
+
+function tc_builtin_is_set(name: string): boolean;
+begin
+  return name = 'set_new' or name = 'set_len' or name = 'set_add' or
+         name = 'set_has' or name = 'set_remove' or name = 'set_clear';
+end;
+
+function tc_builtin_is_collection(name: string): boolean;
+begin
+  return tc_builtin_is_vector(name) or tc_builtin_is_stack(name) or
+         tc_builtin_is_map(name) or tc_builtin_is_set(name);
+end;
+
+begin
+end.

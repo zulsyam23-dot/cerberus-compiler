@@ -15,11 +15,10 @@ pub fn check_expr(env: &mut TypeEnv, expr: &Expr) -> Result<Type, CompileError> 
             .cloned()
             .ok_or_else(|| CompileError::new_simple(format!("unknown variable '{}'", name))),
         Expr::Index { name, index } => {
-            let var_ty = env
-                .vars
-                .get(name)
-                .cloned()
-                .ok_or_else(|| CompileError::new_simple(format!("unknown variable '{}'", name)))?;
+            let var_ty =
+                env.vars.get(name).cloned().ok_or_else(|| {
+                    CompileError::new_simple(format!("unknown variable '{}'", name))
+                })?;
             let idx_ty = check_expr(env, index)?;
             expect_int(&idx_ty, "array index")?;
             match var_ty {
@@ -31,22 +30,17 @@ pub fn check_expr(env: &mut TypeEnv, expr: &Expr) -> Result<Type, CompileError> 
             if let Some(ty) = check_vector_call(env, name, args)? {
                 return Ok(ty);
             }
-            let sig = env
-                .funcs
-                .get(name)
-                .cloned()
-                .ok_or_else(|| CompileError::new_simple(format!("unknown function '{}'", name)))?;
+            let sig =
+                env.funcs.get(name).cloned().ok_or_else(|| {
+                    CompileError::new_simple(format!("unknown function '{}'", name))
+                })?;
             if sig.params.len() != args.len() {
-                return Err(CompileError::new_simple(
-                    "function argument count mismatch",
-                ));
+                return Err(CompileError::new_simple("function argument count mismatch"));
             }
             for (i, arg) in args.iter().enumerate() {
                 let ty = check_expr(env, arg)?;
                 if ty != sig.params[i] {
-                    return Err(CompileError::new_simple(
-                        "function argument type mismatch",
-                    ));
+                    return Err(CompileError::new_simple("function argument type mismatch"));
                 }
             }
             Ok(sig.ret)
@@ -68,10 +62,7 @@ pub fn check_expr(env: &mut TypeEnv, expr: &Expr) -> Result<Type, CompileError> 
             let lt = check_expr(env, left)?;
             let rt = check_expr(env, right)?;
             match op {
-                BinaryOp::Add
-                | BinaryOp::Sub
-                | BinaryOp::Mul
-                | BinaryOp::Div => {
+                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
                     expect_int(&lt, "binary arithmetic")?;
                     expect_int(&rt, "binary arithmetic")?;
                     Ok(Type::Integer)
@@ -168,7 +159,9 @@ fn check_vector_call(
         }
         "vector_remove" => {
             if args.len() != 2 {
-                return Err(CompileError::new_simple("vector_remove expects 2 arguments"));
+                return Err(CompileError::new_simple(
+                    "vector_remove expects 2 arguments",
+                ));
             }
             let vec_ty = check_expr(env, &args[0])?;
             let idx_ty = check_expr(env, &args[1])?;

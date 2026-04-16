@@ -1,0 +1,9 @@
+program typecheck_builtins_assembler_mod;
+function tc_builtin_is_assembler(name: string): boolean;
+begin
+  return (strlen(name) >= 3 and substr(name, 0, 3) = 'bc_') or
+         (strlen(name) >= 8 and substr(name, 0, 8) = 'builder_') or
+         (strlen(name) >= 10 and substr(name, 0, 10) = 'emit_bcop_');
+end;
+begin
+end.

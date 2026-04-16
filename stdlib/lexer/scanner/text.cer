@@ -1,0 +1,15 @@
+program lexer_scanner_text_mod;
+function lex_sc_is_quote(ch: string): boolean;
+begin
+  return ch = '''';
+end;
+function lex_sc_unquote(s: string): string;
+var n: integer;
+begin
+  n := strlen(s);
+  if n >= 2 and substr(s, 0, 1) = '''' and substr(s, n - 1, 1) = '''' then
+    return substr(s, 1, n - 2);
+  return s;
+end;
+begin
+end.

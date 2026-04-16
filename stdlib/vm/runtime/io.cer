@@ -1,0 +1,138 @@
+program vm_runtime_io;
+
+function rt_io_read(path: string): string;
+begin
+  return readfile(path);
+end;
+
+function rt_io_write(path: string; content: string): boolean;
+begin
+  writefile(path, content);
+  return true;
+end;
+
+function rt_io_exists(path: string): boolean;
+begin
+  return fs_exists(path);
+end;
+
+function rt_io_cwd(): string;
+begin
+  return cwd();
+end;
+
+function rt_io_join(base: string; name: string): string;
+begin
+  return path_join(base, name);
+end;
+
+function rt_io_list(path: string): vector of string;
+begin
+  return fs_listdir(path);
+end;
+
+function rt_io_try_read(path: string): string;
+begin
+  if not rt_io_exists(path) then
+    return '';
+  return rt_io_read(path);
+end;
+
+function rt_io_read_or(path: string; fallback: string): string;
+begin
+  if rt_io_exists(path) then
+    return rt_io_read(path);
+  return fallback;
+end;
+
+function rt_io_write_if_changed(path: string; content: string): boolean;
+var old: string;
+begin
+  if rt_io_exists(path) then
+  begin
+    old := rt_io_read(path);
+    if old = content then
+      return true;
+  end;
+  return rt_io_write(path, content);
+end;
+
+function rt_io_append(path: string; suffix: string): boolean;
+var old: string;
+begin
+  old := rt_io_try_read(path);
+  return rt_io_write(path, concat(old, suffix));
+end;
+
+function rt_io_starts_with(s: string; prefix: string): boolean;
+begin
+  if strlen(s) < strlen(prefix) then
+    return false;
+  return substr(s, 0, strlen(prefix)) = prefix;
+end;
+
+function rt_io_dirname(path: string): string;
+var i: integer;
+n: integer;
+last: integer;
+ch: string;
+sep: string;
+begin
+  n := strlen(path);
+  last := -1;
+  sep := substr(path_join('a', 'b'), 1, 1);
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(path, i, 1);
+    if ch = '/' or ch = sep then
+      last := i;
+    i := i + 1;
+  end;
+  if last < 0 then
+    return '.';
+  if last = 0 then
+    return '/';
+  if last = 2 and substr(path, 1, 1) = ':' then
+    return substr(path, 0, 3);
+  return substr(path, 0, last);
+end;
+
+function rt_io_basename(path: string): string;
+var i: integer;
+n: integer;
+last: integer;
+ch: string;
+sep: string;
+begin
+  n := strlen(path);
+  last := -1;
+  sep := substr(path_join('a', 'b'), 1, 1);
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(path, i, 1);
+    if ch = '/' or ch = sep then
+      last := i;
+    i := i + 1;
+  end;
+  if last < 0 then
+    return path;
+  if last + 1 >= n then
+    return '';
+  return substr(path, last + 1, n - last - 1);
+end;
+
+function rt_io_is_abs(path: string): boolean;
+begin
+  if path = '' then
+    return false;
+  if rt_io_starts_with(path, '/') then
+    return true;
+  if strlen(path) >= 3 and substr(path, 1, 1) = ':' then
+    return true;
+  return false;
+end;
+
+begin
+end.

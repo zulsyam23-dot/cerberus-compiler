@@ -1,0 +1,16 @@
+program lexer_mod;
+uses lexer_core, lexer_tokenize;
+function lexer_mod_version(): string;
+begin
+  return lex_version();
+end;
+function lexer_mod_available(): boolean;
+begin
+  return lex_available();
+end;
+function lexer_mod_tokenize(src: string): vector of string;
+begin
+  return lex_tokenize(src);
+end;
+begin
+end.

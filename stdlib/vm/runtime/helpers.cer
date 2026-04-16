@@ -1,0 +1,357 @@
+program vm_runtime_helpers;
+
+function rt_trim(s: string): string;
+var i: integer;
+j: integer;
+n: integer;
+done: boolean;
+begin
+  n := strlen(s);
+  if n = 0 then
+    return '';
+  i := 0;
+  done := false;
+  while i < n and not done do
+  begin
+    if substr(s, i, 1) = ' ' then
+      i := i + 1
+    else
+      done := true;
+  end;
+  j := n - 1;
+  done := false;
+  while j >= i and not done do
+  begin
+    if substr(s, j, 1) = ' ' then
+      j := j - 1
+    else
+      done := true;
+  end;
+  if j < i then
+    return '';
+  return substr(s, i, j - i + 1);
+end;
+
+function rt_starts_with(s: string; prefix: string): boolean;
+begin
+  if strlen(s) < strlen(prefix) then
+    return false;
+  return substr(s, 0, strlen(prefix)) = prefix;
+end;
+
+function rt_is_digit(ch: string): boolean;
+begin
+  return ch = '0' or ch = '1' or ch = '2' or ch = '3' or ch = '4' or ch = '5' or ch = '6' or ch = '7' or ch = '8' or ch = '9';
+end;
+
+function rt_digit(ch: string): integer;
+begin
+  if ch = '0' then return 0;
+  if ch = '1' then return 1;
+  if ch = '2' then return 2;
+  if ch = '3' then return 3;
+  if ch = '4' then return 4;
+  if ch = '5' then return 5;
+  if ch = '6' then return 6;
+  if ch = '7' then return 7;
+  if ch = '8' then return 8;
+  if ch = '9' then return 9;
+  return 0;
+end;
+
+function rt_char_in(ch: string; pool: string): boolean;
+var i: integer;
+n: integer;
+begin
+  i := 0;
+  n := strlen(pool);
+  while i < n do
+  begin
+    if substr(pool, i, 1) = ch then
+      return true;
+    i := i + 1;
+  end;
+  return false;
+end;
+
+function rt_is_script_char(ch: string): boolean;
+begin
+  if ch = '''' then
+    return true;
+  return rt_char_in(ch, ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@#-+*/=<>()[]:,.?!"$%&|\\{}~');
+end;
+
+function rt_is_int_token(s: string): boolean;
+var i: integer;
+n: integer;
+begin
+  s := rt_trim(s);
+  n := strlen(s);
+  if n = 0 then
+    return false;
+  i := 0;
+  if substr(s, 0, 1) = '-' then
+  begin
+    if n = 1 then
+      return false;
+    i := 1;
+  end;
+  while i < n do
+  begin
+    if not rt_is_digit(substr(s, i, 1)) then
+      return false;
+    i := i + 1;
+  end;
+  return true;
+end;
+
+function rt_parse_int(s: string): integer;
+var i: integer;
+n: integer;
+v: integer;
+sign: integer;
+begin
+  s := rt_trim(s);
+  n := strlen(s);
+  if n = 0 then
+    return 0;
+  sign := 1;
+  i := 0;
+  if substr(s, 0, 1) = '-' then
+  begin
+    sign := 0 - 1;
+    i := 1;
+  end;
+  v := 0;
+  while i < n do
+  begin
+    if rt_is_digit(substr(s, i, 1)) then
+      v := v * 10 + rt_digit(substr(s, i, 1));
+    i := i + 1;
+  end;
+  return sign * v;
+end;
+
+function rt_int_to_str(v: integer): string;
+var digits: string;
+out: string;
+d: integer;
+q: integer;
+neg: boolean;
+begin
+  if v = 0 then
+    return '0';
+  digits := '0123456789';
+  out := '';
+  neg := false;
+  if v < 0 then
+  begin
+    neg := true;
+    v := 0 - v;
+  end;
+  while v > 0 do
+  begin
+    q := v / 10;
+    d := v - (q * 10);
+    out := concat(substr(digits, d, 1), out);
+    v := q;
+  end;
+  if neg then
+    out := concat('-', out);
+  return out;
+end;
+
+function rt_parse_str_literal(s: string): string;
+var n: integer;
+begin
+  s := rt_trim(s);
+  n := strlen(s);
+  if n >= 2 and substr(s, 0, 1) = '''' and substr(s, n - 1, 1) = '''' then
+    return substr(s, 1, n - 2);
+  return s;
+end;
+
+function rt_is_op_start(ch: string): boolean;
+begin
+  if ch = '#' then
+    return true;
+  if ch = '@' then
+    return true;
+  return ch = 'a' or ch = 'b' or ch = 'c' or ch = 'd' or ch = 'e' or ch = 'f' or ch = 'g' or ch = 'h' or ch = 'i' or ch = 'j' or ch = 'k' or ch = 'l' or ch = 'm' or ch = 'n' or ch = 'o' or ch = 'p' or ch = 'q' or ch = 'r' or ch = 's' or ch = 't' or ch = 'u' or ch = 'v' or ch = 'w' or ch = 'x' or ch = 'y' or ch = 'z';
+end;
+
+function rt_line_op(line: string): string;
+var i: integer;
+n: integer;
+ch: string;
+start: integer;
+begin
+  n := strlen(line);
+  start := -1;
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(line, i, 1);
+    if start < 0 and rt_is_op_start(ch) then
+      start := i;
+    if start >= 0 and ch = ' ' then
+      return substr(line, start, i - start);
+    i := i + 1;
+  end;
+  if start < 0 then
+    return '';
+  if substr(line, start, 1) = '#' then
+    return '#';
+  return substr(line, start, n - start);
+end;
+
+function rt_line_arg(line: string): string;
+var i: integer;
+n: integer;
+ch: string;
+start: integer;
+begin
+  n := strlen(line);
+  start := -1;
+  i := 0;
+  while i < n do
+  begin
+    ch := substr(line, i, 1);
+    if start < 0 and rt_is_op_start(ch) then
+      start := i;
+    if start >= 0 and ch = ' ' then
+      return rt_trim(substr(line, i + 1, n - i - 1));
+    i := i + 1;
+  end;
+  return '';
+end;
+
+function rt_strip_inline_comment(line: string): string;
+var i: integer;
+n: integer;
+ch: string;
+in_str: boolean;
+begin
+  n := strlen(line);
+  i := 0;
+  in_str := false;
+  while i < n do
+  begin
+    ch := substr(line, i, 1);
+    if in_str then
+    begin
+      if ch = '''' then
+      begin
+        if i + 1 < n then
+        begin
+          if substr(line, i + 1, 1) = '''' then
+            i := i + 2
+          else
+          begin
+            in_str := false;
+            i := i + 1;
+          end;
+        end
+        else
+        begin
+          in_str := false;
+          i := i + 1;
+        end;
+      end
+      else
+        i := i + 1;
+    end
+    else
+    begin
+      if ch = '''' then
+      begin
+        in_str := true;
+        i := i + 1;
+      end
+      else if ch = '#' then
+        return rt_trim(substr(line, 0, i))
+      else
+        i := i + 1;
+    end;
+  end;
+  return rt_trim(line);
+end;
+
+function rt_split_lines(src: string): vector of string;
+var out: vector of string;
+cur: string;
+line: string;
+i: integer;
+n: integer;
+ch: string;
+in_str: boolean;
+begin
+  out := vector_new_str();
+  cur := '';
+  n := strlen(src);
+  if n = 0 then
+    return out;
+  i := 0;
+  in_str := false;
+  while i < n do
+  begin
+    ch := substr(src, i, 1);
+    if in_str then
+    begin
+      cur := concat(cur, ch);
+      if ch = '''' then
+      begin
+        if i + 1 < n then
+        begin
+          if substr(src, i + 1, 1) = '''' then
+          begin
+            cur := concat(cur, '''');
+            i := i + 2;
+          end
+          else
+          begin
+            in_str := false;
+            i := i + 1;
+          end;
+        end
+        else
+        begin
+          in_str := false;
+          i := i + 1;
+        end;
+      end
+      else
+        i := i + 1;
+    end
+    else
+    begin
+      if ch = '''' then
+      begin
+        in_str := true;
+        cur := concat(cur, ch);
+        i := i + 1;
+      end
+      else if ch = ';' or not rt_is_script_char(ch) then
+      begin
+        line := rt_strip_inline_comment(rt_trim(cur));
+        if line <> '' then
+          out := vector_push(out, line);
+        cur := '';
+        i := i + 1;
+      end
+      else
+      begin
+        cur := concat(cur, ch);
+        i := i + 1;
+      end;
+    end;
+  end;
+  line := rt_strip_inline_comment(rt_trim(cur));
+  if line <> '' then
+    out := vector_push(out, line);
+  return out;
+end;
+
+begin
+end.
+

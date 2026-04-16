@@ -1,0 +1,30 @@
+program vm_ops;
+uses runtime_ops;
+
+function vm_is_control_op(op: string): boolean;
+begin
+  return rt_op_is_control(op);
+end;
+
+function vm_is_const_op(op: string): boolean;
+begin
+  return rt_op_is_const(op);
+end;
+
+function vm_is_known_op(op: string): boolean;
+begin
+  return rt_op_is_known(op);
+end;
+
+function vm_is_directive(op: string): boolean;
+begin
+  return rt_op_is_directive(op);
+end;
+
+function vm_is_known_directive(op: string): boolean;
+begin
+  return rt_dir_is_known(op);
+end;
+
+begin
+end.

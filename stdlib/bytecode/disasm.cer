@@ -1,0 +1,7 @@
+program bytecode_disasm;
+function bc_disasm_text(code: string): string;
+begin
+  return code;
+end;
+begin
+end.

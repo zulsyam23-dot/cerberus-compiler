@@ -1,8 +1,8 @@
 mod collections;
 mod io;
 mod option_result;
-mod string;
 mod runtime;
+mod string;
 
 use crate::ast::CallExpr;
 use crate::error::CompileError;
@@ -28,10 +28,7 @@ pub fn try_emit(cg: &mut Codegen, call: &CallExpr) -> Result<bool, CompileError>
     Ok(false)
 }
 
-pub(super) fn emit_args(
-    cg: &mut Codegen,
-    args: &[crate::ast::Expr],
-) -> Result<(), CompileError> {
+pub(super) fn emit_args(cg: &mut Codegen, args: &[crate::ast::Expr]) -> Result<(), CompileError> {
     for arg in args {
         super::emit_expr(cg, arg)?;
     }

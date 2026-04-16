@@ -1,0 +1,7 @@
+program vm_runtime_instr_env_fs;
+function vm_instr_env_fs_handles(op: string): boolean;
+begin
+  return op = 'env_get' or op = 'env_has' or op = 'cwd' or op = 'path_join' or op = 'fs_exists' or op = 'fs_listdir';
+end;
+begin
+end.

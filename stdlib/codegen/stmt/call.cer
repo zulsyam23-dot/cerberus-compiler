@@ -1,0 +1,24 @@
+program codegen_stmt_call_mod;
+uses codegen_util;
+function cg_stmt_is_call(stmt: string): boolean;
+begin
+  return cg_kind(stmt) = 'SCall';
+end;
+function cg_stmt_call_name(stmt: string): string;
+var parts: vector of string;
+begin
+  if not cg_stmt_is_call(stmt) then
+    return '';
+  parts := cg_split_top(cg_extract(stmt), ';');
+  return vector_get(parts, 0);
+end;
+function cg_stmt_call_args(stmt: string): vector of string;
+var parts: vector of string;
+begin
+  if not cg_stmt_is_call(stmt) then
+    return vector_new_str();
+  parts := cg_split_top(cg_extract(stmt), ';');
+  return cg_extract_list(vector_get(parts, 1));
+end;
+begin
+end.

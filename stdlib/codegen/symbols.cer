@@ -1,0 +1,17 @@
+program codegen_symbols_mod;
+uses codegen_state;
+function cg_symbols_get_or_alloc(state: map; name: string): map;
+begin
+  return cg_sym_get(state, name);
+end;
+function cg_symbols_slot(state: map; name: string): integer;
+begin
+  state := cg_sym_get(state, name);
+  return cg_get_result(state);
+end;
+function cg_symbols_next_label(state: map): map;
+begin
+  return cg_next_label(state);
+end;
+begin
+end.

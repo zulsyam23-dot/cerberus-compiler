@@ -1,0 +1,13 @@
+program typecheck_stmt_mod;
+uses typecheck_stmt, typecheck_core, typecheck_decl;
+function typecheck_stmt_apply(state: map; stmt: string): map;
+begin
+  return tc_stmt(state, stmt);
+end;
+function typecheck_stmt_has_error(state: map; stmt: string): boolean;
+begin
+  state := tc_stmt(state, stmt);
+  return tc_has_error(state);
+end;
+begin
+end.

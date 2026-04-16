@@ -1,10 +1,10 @@
+mod builtins;
 mod env;
 mod expr;
 mod stmt;
 mod types;
-mod builtins;
 
-use crate::ast::{Block, FuncDecl, ProcDecl, Program, Type, VarDecl, Decl};
+use crate::ast::{Block, Decl, FuncDecl, ProcDecl, Program, Type, VarDecl};
 use crate::error::CompileError;
 
 use env::{FuncSig, ProcSig, TypeEnv};
@@ -62,7 +62,12 @@ impl TypeChecker {
                         },
                     );
                 }
-                Decl::Func(FuncDecl { name, return_type, params, .. }) => {
+                Decl::Func(FuncDecl {
+                    name,
+                    return_type,
+                    params,
+                    ..
+                }) => {
                     if self.env.procs.contains_key(name) || self.env.funcs.contains_key(name) {
                         return Err(CompileError::new_simple(format!(
                             "duplicate function '{}'",
@@ -82,7 +87,11 @@ impl TypeChecker {
 
         for decl in &block.declarations {
             match decl {
-                Decl::Proc(ProcDecl { params, block, name }) => {
+                Decl::Proc(ProcDecl {
+                    params,
+                    block,
+                    name,
+                }) => {
                     let saved_ret = self.env.current_return.take();
                     self.env.current_return = None;
                     for p in params {
@@ -94,7 +103,12 @@ impl TypeChecker {
                     self.check_block(block)?;
                     self.env.current_return = saved_ret;
                 }
-                Decl::Func(FuncDecl { return_type, params, block, name }) => {
+                Decl::Func(FuncDecl {
+                    return_type,
+                    params,
+                    block,
+                    name,
+                }) => {
                     let saved_ret = self.env.current_return.take();
                     self.env.current_return = Some(return_type.clone());
                     for p in params {

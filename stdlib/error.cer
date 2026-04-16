@@ -1,0 +1,7 @@
+program error;
+function error_make(msg: string): string;
+begin
+  return concat('ERROR: ', msg);
+end;
+begin
+end.

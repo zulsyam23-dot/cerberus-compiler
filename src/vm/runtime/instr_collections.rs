@@ -1,11 +1,11 @@
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::helpers::ensure_vector_value;
-use super::Vm;
 use super::super::array::set_index;
 use super::super::ops::{pop, pop_bool, pop_int};
 use super::super::value::Value;
+use super::Vm;
+use super::helpers::ensure_vector_value;
 
 impl Vm {
     pub(super) fn exec_collections(&mut self, instr: Instr) -> Result<(), CompileError> {
@@ -50,9 +50,10 @@ impl Vm {
                     Value::Vector(v) => v,
                     _ => return Err(CompileError::new_simple("vector_get: expected vector")),
                 };
-                let out = v.get(idx).cloned().ok_or_else(|| {
-                    CompileError::new_simple("vector_get: index out of range")
-                })?;
+                let out = v
+                    .get(idx)
+                    .cloned()
+                    .ok_or_else(|| CompileError::new_simple("vector_get: index out of range"))?;
                 self.stack.push(out);
             }
             Instr::VecSet => {
@@ -86,7 +87,9 @@ impl Vm {
                     _ => return Err(CompileError::new_simple("vector_remove: expected vector")),
                 };
                 if idx >= v.len() {
-                    return Err(CompileError::new_simple("vector_remove: index out of range"));
+                    return Err(CompileError::new_simple(
+                        "vector_remove: index out of range",
+                    ));
                 }
                 v.remove(idx);
                 self.stack.push(Value::Vector(v));
@@ -96,9 +99,10 @@ impl Vm {
                     Value::Vector(v) => v,
                     _ => return Err(CompileError::new_simple("vector_last: expected vector")),
                 };
-                let out = v.last().cloned().ok_or_else(|| {
-                    CompileError::new_simple("vector_last: empty vector")
-                })?;
+                let out = v
+                    .last()
+                    .cloned()
+                    .ok_or_else(|| CompileError::new_simple("vector_last: empty vector"))?;
                 self.stack.push(out);
             }
             Instr::VecPop => {
@@ -135,9 +139,10 @@ impl Vm {
                     Value::Stack(v) => v,
                     _ => return Err(CompileError::new_simple("stack_top: expected stack")),
                 };
-                let out = v.last().copied().ok_or_else(|| {
-                    CompileError::new_simple("stack_top: empty stack")
-                })?;
+                let out = v
+                    .last()
+                    .copied()
+                    .ok_or_else(|| CompileError::new_simple("stack_top: empty stack"))?;
                 self.stack.push(Value::Int(out));
             }
             Instr::StackPop => {
@@ -186,9 +191,10 @@ impl Vm {
                     Value::Map(m) => m,
                     _ => return Err(CompileError::new_simple("map_get: expected map")),
                 };
-                let out = m.get(&key).cloned().ok_or_else(|| {
-                    CompileError::new_simple("map_get: key not found")
-                })?;
+                let out = m
+                    .get(&key)
+                    .cloned()
+                    .ok_or_else(|| CompileError::new_simple("map_get: key not found"))?;
                 self.stack.push(Value::Str(out));
             }
             Instr::MapHas => {
@@ -205,11 +211,7 @@ impl Vm {
             Instr::MapRemove => {
                 let key = match pop(&mut self.stack)? {
                     Value::Str(v) => v,
-                    _ => {
-                        return Err(CompileError::new_simple(
-                            "map_remove: expected string key",
-                        ))
-                    }
+                    _ => return Err(CompileError::new_simple("map_remove: expected string key")),
                 };
                 let mut m = match pop(&mut self.stack)? {
                     Value::Map(m) => m,
@@ -266,18 +268,21 @@ impl Vm {
             }
             Instr::OptSomeInt => {
                 let v = pop_int(&mut self.stack)?;
-                self.stack.push(Value::Option(Some(Box::new(Value::Int(v)))));
+                self.stack
+                    .push(Value::Option(Some(Box::new(Value::Int(v)))));
             }
             Instr::OptSomeBool => {
                 let v = pop_bool(&mut self.stack)?;
-                self.stack.push(Value::Option(Some(Box::new(Value::Bool(v)))));
+                self.stack
+                    .push(Value::Option(Some(Box::new(Value::Bool(v)))));
             }
             Instr::OptSomeStr => {
                 let v = match pop(&mut self.stack)? {
                     Value::Str(s) => s,
                     _ => return Err(CompileError::new_simple("option_some_str: expected string")),
                 };
-                self.stack.push(Value::Option(Some(Box::new(Value::Str(v)))));
+                self.stack
+                    .push(Value::Option(Some(Box::new(Value::Str(v)))));
             }
             Instr::OptNoneInt | Instr::OptNoneBool | Instr::OptNoneStr => {
                 self.stack.push(Value::Option(None));
@@ -288,7 +293,7 @@ impl Vm {
                     _ => {
                         return Err(CompileError::new_simple(
                             "option_is_some_int: expected option",
-                        ))
+                        ));
                     }
                 };
                 self.stack.push(Value::Bool(v.is_some()));
@@ -299,7 +304,7 @@ impl Vm {
                     _ => {
                         return Err(CompileError::new_simple(
                             "option_is_some_bool: expected option",
-                        ))
+                        ));
                     }
                 };
                 self.stack.push(Value::Bool(v.is_some()));
@@ -310,7 +315,7 @@ impl Vm {
                     _ => {
                         return Err(CompileError::new_simple(
                             "option_is_some_str: expected option",
-                        ))
+                        ));
                     }
                 };
                 self.stack.push(Value::Bool(v.is_some()));
@@ -318,7 +323,11 @@ impl Vm {
             Instr::OptUnwrapInt => {
                 let v = match pop(&mut self.stack)? {
                     Value::Option(v) => v,
-                    _ => return Err(CompileError::new_simple("option_unwrap_int: expected option")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "option_unwrap_int: expected option",
+                        ));
+                    }
                 };
                 let inner = v.ok_or_else(|| CompileError::new_simple("option_unwrap_int: none"))?;
                 match *inner {
@@ -329,18 +338,31 @@ impl Vm {
             Instr::OptUnwrapBool => {
                 let v = match pop(&mut self.stack)? {
                     Value::Option(v) => v,
-                    _ => return Err(CompileError::new_simple("option_unwrap_bool: expected option")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "option_unwrap_bool: expected option",
+                        ));
+                    }
                 };
-                let inner = v.ok_or_else(|| CompileError::new_simple("option_unwrap_bool: none"))?;
+                let inner =
+                    v.ok_or_else(|| CompileError::new_simple("option_unwrap_bool: none"))?;
                 match *inner {
                     Value::Bool(i) => self.stack.push(Value::Bool(i)),
-                    _ => return Err(CompileError::new_simple("option_unwrap_bool: type mismatch")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "option_unwrap_bool: type mismatch",
+                        ));
+                    }
                 }
             }
             Instr::OptUnwrapStr => {
                 let v = match pop(&mut self.stack)? {
                     Value::Option(v) => v,
-                    _ => return Err(CompileError::new_simple("option_unwrap_str: expected option")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "option_unwrap_str: expected option",
+                        ));
+                    }
                 };
                 let inner = v.ok_or_else(|| CompileError::new_simple("option_unwrap_str: none"))?;
                 match *inner {
@@ -352,12 +374,20 @@ impl Vm {
                 let default = pop_int(&mut self.stack)?;
                 let v = match pop(&mut self.stack)? {
                     Value::Option(v) => v,
-                    _ => return Err(CompileError::new_simple("option_unwrap_or_int: expected option")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "option_unwrap_or_int: expected option",
+                        ));
+                    }
                 };
                 if let Some(inner) = v {
                     match *inner {
                         Value::Int(i) => self.stack.push(Value::Int(i)),
-                        _ => return Err(CompileError::new_simple("option_unwrap_or_int: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "option_unwrap_or_int: type mismatch",
+                            ));
+                        }
                     }
                 } else {
                     self.stack.push(Value::Int(default));
@@ -367,12 +397,20 @@ impl Vm {
                 let default = pop_bool(&mut self.stack)?;
                 let v = match pop(&mut self.stack)? {
                     Value::Option(v) => v,
-                    _ => return Err(CompileError::new_simple("option_unwrap_or_bool: expected option")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "option_unwrap_or_bool: expected option",
+                        ));
+                    }
                 };
                 if let Some(inner) = v {
                     match *inner {
                         Value::Bool(i) => self.stack.push(Value::Bool(i)),
-                        _ => return Err(CompileError::new_simple("option_unwrap_or_bool: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "option_unwrap_or_bool: type mismatch",
+                            ));
+                        }
                     }
                 } else {
                     self.stack.push(Value::Bool(default));
@@ -384,17 +422,25 @@ impl Vm {
                     _ => {
                         return Err(CompileError::new_simple(
                             "option_unwrap_or_str: expected string default",
-                        ))
+                        ));
                     }
                 };
                 let v = match pop(&mut self.stack)? {
                     Value::Option(v) => v,
-                    _ => return Err(CompileError::new_simple("option_unwrap_or_str: expected option")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "option_unwrap_or_str: expected option",
+                        ));
+                    }
                 };
                 if let Some(inner) = v {
                     match *inner {
                         Value::Str(i) => self.stack.push(Value::Str(i)),
-                        _ => return Err(CompileError::new_simple("option_unwrap_or_str: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "option_unwrap_or_str: type mismatch",
+                            ));
+                        }
                     }
                 } else {
                     self.stack.push(Value::Str(default));
@@ -402,21 +448,18 @@ impl Vm {
             }
             Instr::ResOkInt => {
                 let v = pop_int(&mut self.stack)?;
-                self.stack
-                    .push(Value::Result(Ok(Box::new(Value::Int(v)))));
+                self.stack.push(Value::Result(Ok(Box::new(Value::Int(v)))));
             }
             Instr::ResOkBool => {
                 let v = pop_bool(&mut self.stack)?;
-                self.stack
-                    .push(Value::Result(Ok(Box::new(Value::Bool(v)))));
+                self.stack.push(Value::Result(Ok(Box::new(Value::Bool(v)))));
             }
             Instr::ResOkStr => {
                 let v = match pop(&mut self.stack)? {
                     Value::Str(s) => s,
                     _ => return Err(CompileError::new_simple("result_ok_str: expected string")),
                 };
-                self.stack
-                    .push(Value::Result(Ok(Box::new(Value::Str(v)))));
+                self.stack.push(Value::Result(Ok(Box::new(Value::Str(v)))));
             }
             Instr::ResErrInt => {
                 let msg = match pop(&mut self.stack)? {
@@ -442,72 +485,108 @@ impl Vm {
             Instr::ResIsOkInt => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_is_ok_int: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_is_ok_int: expected result",
+                        ));
+                    }
                 };
                 self.stack.push(Value::Bool(v.is_ok()));
             }
             Instr::ResIsOkBool => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_is_ok_bool: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_is_ok_bool: expected result",
+                        ));
+                    }
                 };
                 self.stack.push(Value::Bool(v.is_ok()));
             }
             Instr::ResIsOkStr => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_is_ok_str: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_is_ok_str: expected result",
+                        ));
+                    }
                 };
                 self.stack.push(Value::Bool(v.is_ok()));
             }
             Instr::ResUnwrapInt => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_int: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_int: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(inner) => match *inner {
                         Value::Int(i) => self.stack.push(Value::Int(i)),
-                        _ => return Err(CompileError::new_simple("result_unwrap_int: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "result_unwrap_int: type mismatch",
+                            ));
+                        }
                     },
                     Err(msg) => {
                         return Err(CompileError::new_simple(format!(
                             "result_unwrap_int: {msg}"
-                        )))
+                        )));
                     }
                 }
             }
             Instr::ResUnwrapBool => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_bool: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_bool: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(inner) => match *inner {
                         Value::Bool(i) => self.stack.push(Value::Bool(i)),
-                        _ => return Err(CompileError::new_simple("result_unwrap_bool: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "result_unwrap_bool: type mismatch",
+                            ));
+                        }
                     },
                     Err(msg) => {
                         return Err(CompileError::new_simple(format!(
                             "result_unwrap_bool: {msg}"
-                        )))
+                        )));
                     }
                 }
             }
             Instr::ResUnwrapStr => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_str: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_str: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(inner) => match *inner {
                         Value::Str(i) => self.stack.push(Value::Str(i)),
-                        _ => return Err(CompileError::new_simple("result_unwrap_str: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "result_unwrap_str: type mismatch",
+                            ));
+                        }
                     },
                     Err(msg) => {
                         return Err(CompileError::new_simple(format!(
                             "result_unwrap_str: {msg}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -515,12 +594,20 @@ impl Vm {
                 let default = pop_int(&mut self.stack)?;
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_or_int: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_or_int: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(inner) => match *inner {
                         Value::Int(i) => self.stack.push(Value::Int(i)),
-                        _ => return Err(CompileError::new_simple("result_unwrap_or_int: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "result_unwrap_or_int: type mismatch",
+                            ));
+                        }
                     },
                     Err(_) => self.stack.push(Value::Int(default)),
                 }
@@ -529,12 +616,20 @@ impl Vm {
                 let default = pop_bool(&mut self.stack)?;
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_or_bool: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_or_bool: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(inner) => match *inner {
                         Value::Bool(i) => self.stack.push(Value::Bool(i)),
-                        _ => return Err(CompileError::new_simple("result_unwrap_or_bool: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "result_unwrap_or_bool: type mismatch",
+                            ));
+                        }
                     },
                     Err(_) => self.stack.push(Value::Bool(default)),
                 }
@@ -545,17 +640,25 @@ impl Vm {
                     _ => {
                         return Err(CompileError::new_simple(
                             "result_unwrap_or_str: expected string default",
-                        ))
+                        ));
                     }
                 };
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_or_str: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_or_str: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(inner) => match *inner {
                         Value::Str(i) => self.stack.push(Value::Str(i)),
-                        _ => return Err(CompileError::new_simple("result_unwrap_or_str: type mismatch")),
+                        _ => {
+                            return Err(CompileError::new_simple(
+                                "result_unwrap_or_str: type mismatch",
+                            ));
+                        }
                     },
                     Err(_) => self.stack.push(Value::Str(default)),
                 }
@@ -563,13 +666,15 @@ impl Vm {
             Instr::ResUnwrapErrInt => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_err_int: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_err_int: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(_) => {
-                        return Err(CompileError::new_simple(
-                            "result_unwrap_err_int: ok value",
-                        ))
+                        return Err(CompileError::new_simple("result_unwrap_err_int: ok value"));
                     }
                     Err(msg) => self.stack.push(Value::Str(msg)),
                 }
@@ -577,13 +682,15 @@ impl Vm {
             Instr::ResUnwrapErrBool => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_err_bool: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_err_bool: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(_) => {
-                        return Err(CompileError::new_simple(
-                            "result_unwrap_err_bool: ok value",
-                        ))
+                        return Err(CompileError::new_simple("result_unwrap_err_bool: ok value"));
                     }
                     Err(msg) => self.stack.push(Value::Str(msg)),
                 }
@@ -591,13 +698,15 @@ impl Vm {
             Instr::ResUnwrapErrStr => {
                 let v = match pop(&mut self.stack)? {
                     Value::Result(v) => v,
-                    _ => return Err(CompileError::new_simple("result_unwrap_err_str: expected result")),
+                    _ => {
+                        return Err(CompileError::new_simple(
+                            "result_unwrap_err_str: expected result",
+                        ));
+                    }
                 };
                 match v {
                     Ok(_) => {
-                        return Err(CompileError::new_simple(
-                            "result_unwrap_err_str: ok value",
-                        ))
+                        return Err(CompileError::new_simple("result_unwrap_err_str: ok value"));
                     }
                     Err(msg) => self.stack.push(Value::Str(msg)),
                 }

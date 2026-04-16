@@ -1,0 +1,14 @@
+program typecheck_expr_mod;
+uses typecheck_expr, typecheck_core;
+function typecheck_expr_type_of(state: map; expr: string): string;
+begin
+  state := tc_expr_type(state, expr);
+  return tc_get_result(state);
+end;
+function typecheck_expr_ok(state: map; expr: string): boolean;
+begin
+  state := tc_expr_type(state, expr);
+  return not tc_has_error(state);
+end;
+begin
+end.

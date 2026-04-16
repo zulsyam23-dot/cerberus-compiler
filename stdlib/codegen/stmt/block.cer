@@ -1,0 +1,14 @@
+program codegen_stmt_block_mod;
+uses codegen_util, codegen_stmt;
+function cg_stmt_is_block(stmt: string): boolean;
+begin
+  return cg_kind(stmt) = 'SBlock';
+end;
+function cg_stmt_emit_block_only(state: map; stmt: string): map;
+begin
+  if not cg_stmt_is_block(stmt) then
+    return state;
+  return cg_emit_block(state, cg_extract(stmt));
+end;
+begin
+end.

@@ -1,0 +1,11 @@
+program vm_runtime_instr_core;
+function vm_instr_core_handles(op: string): boolean;
+begin
+  return op = 'const_int' or op = 'const_bool' or op = 'const_str' or
+         op = 'load' or op = 'store' or
+         op = 'add' or op = 'sub' or op = 'mul' or op = 'div' or op = 'neg' or
+         op = 'and' or op = 'or' or op = 'not' or
+         op = 'eq' or op = 'ne' or op = 'lt' or op = 'le' or op = 'gt' or op = 'ge';
+end;
+begin
+end.

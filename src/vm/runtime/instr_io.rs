@@ -1,10 +1,10 @@
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::Vm;
 use super::super::io::read_line;
 use super::super::ops::{pop, pop_int};
 use super::super::value::Value;
+use super::Vm;
 
 impl Vm {
     pub(super) fn exec_io(&mut self, instr: Instr) -> Result<(), CompileError> {
@@ -14,9 +14,8 @@ impl Vm {
                     Value::Str(s) => s,
                     _ => return Err(CompileError::new_simple("readfile: expected string path")),
                 };
-                let content = std::fs::read_to_string(&path).map_err(|e| {
-                    CompileError::new_simple(format!("readfile failed: {e}"))
-                })?;
+                let content = std::fs::read_to_string(&path)
+                    .map_err(|e| CompileError::new_simple(format!("readfile failed: {e}")))?;
                 self.stack.push(Value::Str(content));
             }
             Instr::WriteFile => {
@@ -25,25 +24,26 @@ impl Vm {
                     _ => {
                         return Err(CompileError::new_simple(
                             "writefile: expected string content",
-                        ))
+                        ));
                     }
                 };
                 let path = match pop(&mut self.stack)? {
                     Value::Str(s) => s,
                     _ => return Err(CompileError::new_simple("writefile: expected string path")),
                 };
-                std::fs::write(&path, content).map_err(|e| {
-                    CompileError::new_simple(format!("writefile failed: {e}"))
-                })?;
+                std::fs::write(&path, content)
+                    .map_err(|e| CompileError::new_simple(format!("writefile failed: {e}")))?;
             }
             Instr::ArgCount => {
                 self.stack.push(Value::Int(self.args.len() as i64));
             }
             Instr::Arg => {
                 let idx = pop_int(&mut self.stack)? as usize;
-                let v = self.args.get(idx).cloned().ok_or_else(|| {
-                    CompileError::new_simple("arg: index out of range")
-                })?;
+                let v = self
+                    .args
+                    .get(idx)
+                    .cloned()
+                    .ok_or_else(|| CompileError::new_simple("arg: index out of range"))?;
                 self.stack.push(Value::Str(v));
             }
             Instr::PrintLn => {
@@ -63,9 +63,9 @@ impl Vm {
             }
             Instr::ReadInt(idx) => {
                 let v = read_line()?;
-                let parsed = v.parse::<i64>().map_err(|_| {
-                    CompileError::new_simple("readln: expected integer input")
-                })?;
+                let parsed = v
+                    .parse::<i64>()
+                    .map_err(|_| CompileError::new_simple("readln: expected integer input"))?;
                 self.store_local(idx, Value::Int(parsed))?;
             }
             Instr::ReadBool(idx) => {
@@ -77,7 +77,7 @@ impl Vm {
                     _ => {
                         return Err(CompileError::new_simple(
                             "readln: expected boolean input (true/false)",
-                        ))
+                        ));
                     }
                 };
                 self.store_local(idx, Value::Bool(parsed))?;

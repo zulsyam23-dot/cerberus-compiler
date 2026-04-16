@@ -19,7 +19,9 @@ pub fn check_stmt(env: &mut TypeEnv, stmt: &Stmt) -> Result<(), CompileError> {
                 let ty = env
                     .vars
                     .get(name)
-                    .ok_or_else(|| CompileError::new_simple(format!("unknown variable '{}'", name)))?
+                    .ok_or_else(|| {
+                        CompileError::new_simple(format!("unknown variable '{}'", name))
+                    })?
                     .clone();
                 expect_printable(&ty, "readln")?;
             }
@@ -42,9 +44,7 @@ pub fn check_stmt(env: &mut TypeEnv, stmt: &Stmt) -> Result<(), CompileError> {
             for (i, arg) in args.iter().enumerate() {
                 let ty = check_expr(env, arg)?;
                 if ty != sig.params[i] {
-                    return Err(CompileError::new_simple(
-                        "procedure argument type mismatch",
-                    ));
+                    return Err(CompileError::new_simple("procedure argument type mismatch"));
                 }
             }
             Ok(())
@@ -123,7 +123,9 @@ fn check_assign_index(env: &mut TypeEnv, a: &AssignIndex) -> Result<(), CompileE
     match var_ty {
         crate::ast::Type::Array { elem, .. } => {
             if *elem != expr_ty {
-                return Err(CompileError::new_simple("type mismatch in array assignment"));
+                return Err(CompileError::new_simple(
+                    "type mismatch in array assignment",
+                ));
             }
             Ok(())
         }

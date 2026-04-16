@@ -1,0 +1,7 @@
+program codegen_expr_builtins_string_mod;
+function cg_builtin_is_string(name: string): boolean;
+begin
+  return name = 'strlen' or name = 'concat' or name = 'substr' or name = 'replace' or name = 'string_clear';
+end;
+begin
+end.

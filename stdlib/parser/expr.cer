@@ -1,0 +1,8 @@
+program parser_expr_mod;
+uses parser_expr;
+function parser_parse_expr(tokens: vector of string; state: map): map;
+begin
+  return parse_expr(tokens, state);
+end;
+begin
+end.

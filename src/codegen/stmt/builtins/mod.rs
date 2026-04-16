@@ -4,8 +4,8 @@ use crate::ast::Expr;
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::super::expr::emit_expr;
 use super::super::Codegen;
+use super::super::expr::emit_expr;
 
 pub(super) fn emit_builtin_call(
     cg: &mut Codegen,
@@ -73,21 +73,27 @@ fn emit_basic(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, Compi
 fn emit_meta(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, CompileError> {
     if name == "emit_bcop_new" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("emit_bcop_new expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "emit_bcop_new expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::MetaBcNew);
         return Ok(true);
     }
     if name == "emit_bcop_main" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("emit_bcop_main expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "emit_bcop_main expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::MetaBcMain);
         return Ok(true);
     }
     if name == "emit_bcop_write" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("emit_bcop_write expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "emit_bcop_write expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::MetaBcWrite);
         return Ok(true);
@@ -112,21 +118,27 @@ fn emit_meta(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, Compil
     }
     if name == "emit_bcop_halt" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("emit_bcop_halt expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "emit_bcop_halt expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::MetaBcEmitHalt);
         return Ok(true);
     }
     if name == "emit_bcop_label" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("emit_bcop_label expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "emit_bcop_label expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::MetaBcLabel);
         return Ok(true);
     }
     if name == "emit_bcop_jump" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("emit_bcop_jump expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "emit_bcop_jump expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::MetaBcJump);
         return Ok(true);
@@ -169,7 +181,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "builder_func_begin" {
         if args.len() != 2 {
-            return Err(CompileError::new_simple("builder_func_begin expects 2 arguments"));
+            return Err(CompileError::new_simple(
+                "builder_func_begin expects 2 arguments",
+            ));
         }
         for arg in args {
             emit_expr(cg, arg)?;
@@ -179,14 +193,18 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "builder_func_end" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("builder_func_end expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "builder_func_end expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcFuncEnd);
         return Ok(true);
     }
     if name == "builder_emit_halt" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("builder_emit_halt expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "builder_emit_halt expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcEmitHalt);
         return Ok(true);
@@ -209,7 +227,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "builder_jump_if_false" {
         if args.len() != 1 {
-            return Err(CompileError::new_simple("builder_jump_if_false expects 1 argument"));
+            return Err(CompileError::new_simple(
+                "builder_jump_if_false expects 1 argument",
+            ));
         }
         emit_expr(cg, &args[0])?;
         cg.code.push(Instr::BcJumpIfFalse);
@@ -248,7 +268,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_func_begin" {
         if !args.is_empty() && args.len() != 2 {
-            return Err(CompileError::new_simple("bc_func_begin expects 0 or 2 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_func_begin expects 0 or 2 arguments",
+            ));
         }
         for arg in args {
             emit_expr(cg, arg)?;
@@ -258,7 +280,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_func_begin_op" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_func_begin_op expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_func_begin_op expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcFuncBeginOp);
         return Ok(true);
@@ -272,14 +296,18 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_func_end_op" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_func_end_op expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_func_end_op expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcFuncEndOp);
         return Ok(true);
     }
     if name == "bc_emit_call" {
         if !args.is_empty() && args.len() != 1 {
-            return Err(CompileError::new_simple("bc_emit_call expects 0 or 1 argument"));
+            return Err(CompileError::new_simple(
+                "bc_emit_call expects 0 or 1 argument",
+            ));
         }
         if !args.is_empty() {
             emit_expr(cg, &args[0])?;
@@ -289,7 +317,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_emit_call_op" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_emit_call_op expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_emit_call_op expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcEmitCallOp);
         return Ok(true);
@@ -303,21 +333,27 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_emit_ret_op" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_emit_ret_op expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_emit_ret_op expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcEmitRetOp);
         return Ok(true);
     }
     if name == "bc_emit_retval" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_emit_retval expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_emit_retval expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcEmitRetVal);
         return Ok(true);
     }
     if name == "bc_emit_retval_op" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_emit_retval_op expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_emit_retval_op expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcEmitRetValOp);
         return Ok(true);
@@ -338,7 +374,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_jump_if_false_op" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_jump_if_false_op expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_jump_if_false_op expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcJumpIfFalseOp);
         return Ok(true);
@@ -365,7 +403,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_jump_if_false" {
         if !args.is_empty() && args.len() != 1 {
-            return Err(CompileError::new_simple("bc_jump_if_false expects 0 or 1 argument"));
+            return Err(CompileError::new_simple(
+                "bc_jump_if_false expects 0 or 1 argument",
+            ));
         }
         if !args.is_empty() {
             emit_expr(cg, &args[0])?;
@@ -382,7 +422,9 @@ fn emit_bc_control(cg: &mut Codegen, name: &str, args: &[Expr]) -> Result<bool, 
     }
     if name == "bc_emit_halt_op" {
         if !args.is_empty() {
-            return Err(CompileError::new_simple("bc_emit_halt_op expects 0 arguments"));
+            return Err(CompileError::new_simple(
+                "bc_emit_halt_op expects 0 arguments",
+            ));
         }
         cg.code.push(Instr::BcEmitHaltOp);
         return Ok(true);

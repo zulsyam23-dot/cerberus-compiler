@@ -1,3 +1,5 @@
 /target
 /target_bootstrap_fix2
 /*.cerb
+**/.compiler_cache.cerb
+**/.runtime_cache.cerb

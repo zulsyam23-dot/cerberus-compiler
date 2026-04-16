@@ -1,5 +1,16 @@
 program typecheck_impl;
 uses typecheck_core, typecheck_util, typecheck_types, typecheck_expr, typecheck_stmt, typecheck_decl;
-
+function typecheck_impl_available(): boolean;
+begin
+  return true;
+end;
+function typecheck_impl_ok(ast: string): boolean;
+begin
+  return typecheck_ok(ast);
+end;
+function typecheck_impl_error(ast: string): string;
+begin
+  return typecheck_error_impl(ast);
+end;
 begin
 end.

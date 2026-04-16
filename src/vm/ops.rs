@@ -22,13 +22,28 @@ pub fn pop_bool(stack: &mut Vec<Value>) -> Result<bool, CompileError> {
     }
 }
 
-pub fn bin_int<F: FnOnce(i64, i64) -> i64>(
+pub fn bin_int_checked<F: FnOnce(i64, i64) -> Option<i64>>(
     stack: &mut Vec<Value>,
+    op_name: &str,
     f: F,
 ) -> Result<(), CompileError> {
     let b = pop_int(stack)?;
     let a = pop_int(stack)?;
-    stack.push(Value::Int(f(a, b)));
+    let out = f(a, b)
+        .ok_or_else(|| CompileError::new_simple(format!("{}: integer overflow", op_name)))?;
+    stack.push(Value::Int(out));
+    Ok(())
+}
+
+pub fn unary_int_checked<F: FnOnce(i64) -> Option<i64>>(
+    stack: &mut Vec<Value>,
+    op_name: &str,
+    f: F,
+) -> Result<(), CompileError> {
+    let a = pop_int(stack)?;
+    let out =
+        f(a).ok_or_else(|| CompileError::new_simple(format!("{}: integer overflow", op_name)))?;
+    stack.push(Value::Int(out));
     Ok(())
 }
 

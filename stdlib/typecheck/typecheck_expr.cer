@@ -1,5 +1,5 @@
 program typecheck_expr;
-uses typecheck_core, typecheck_util, typecheck_types;
+uses typecheck_core, typecheck_util, typecheck_types, builtins;
 
 function tc_expr_type(state: map; expr: string): map;
 var kind: string;
@@ -333,6 +333,243 @@ begin
       if tc_get_result(state) <> 'map<string,string>' then state := tc_set_error(state, 'map_clear expects map');
       return tc_set_result(state, 'map<string,string>');
     end;
+    if name = 'option_some_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_some_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'option_some_int expects int');
+      return tc_set_result(state, tc_type_option('int'));
+    end;
+    if name = 'option_some_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_some_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'bool' then state := tc_set_error(state, 'option_some_bool expects bool');
+      return tc_set_result(state, tc_type_option('bool'));
+    end;
+    if name = 'option_some_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_some_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'option_some_str expects string');
+      return tc_set_result(state, tc_type_option('string'));
+    end;
+    if name = 'option_none_int' then
+    begin
+      if vector_len(args) <> 0 then state := tc_set_error(state, 'option_none_int expects 0 args');
+      return tc_set_result(state, tc_type_option('int'));
+    end;
+    if name = 'option_none_bool' then
+    begin
+      if vector_len(args) <> 0 then state := tc_set_error(state, 'option_none_bool expects 0 args');
+      return tc_set_result(state, tc_type_option('bool'));
+    end;
+    if name = 'option_none_str' then
+    begin
+      if vector_len(args) <> 0 then state := tc_set_error(state, 'option_none_str expects 0 args');
+      return tc_set_result(state, tc_type_option('string'));
+    end;
+    if name = 'option_is_some_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_is_some_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('int') then state := tc_set_error(state, 'option_is_some_int expects option<int>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'option_is_some_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_is_some_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('bool') then state := tc_set_error(state, 'option_is_some_bool expects option<bool>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'option_is_some_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_is_some_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('string') then state := tc_set_error(state, 'option_is_some_str expects option<string>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'option_unwrap_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_unwrap_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('int') then state := tc_set_error(state, 'option_unwrap_int expects option<int>');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'option_unwrap_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_unwrap_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('bool') then state := tc_set_error(state, 'option_unwrap_bool expects option<bool>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'option_unwrap_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'option_unwrap_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('string') then state := tc_set_error(state, 'option_unwrap_str expects option<string>');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'option_unwrap_or_int' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'option_unwrap_or_int expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('int') then state := tc_set_error(state, 'option_unwrap_or_int expects option<int>');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'option_unwrap_or_int default must be int');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'option_unwrap_or_bool' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'option_unwrap_or_bool expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('bool') then state := tc_set_error(state, 'option_unwrap_or_bool expects option<bool>');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'bool' then state := tc_set_error(state, 'option_unwrap_or_bool default must be bool');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'option_unwrap_or_str' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'option_unwrap_or_str expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_option('string') then state := tc_set_error(state, 'option_unwrap_or_str expects option<string>');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'option_unwrap_or_str default must be string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'result_ok_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_ok_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'result_ok_int expects int');
+      return tc_set_result(state, tc_type_result('int'));
+    end;
+    if name = 'result_ok_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_ok_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'bool' then state := tc_set_error(state, 'result_ok_bool expects bool');
+      return tc_set_result(state, tc_type_result('bool'));
+    end;
+    if name = 'result_ok_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_ok_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'result_ok_str expects string');
+      return tc_set_result(state, tc_type_result('string'));
+    end;
+    if name = 'result_err_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_err_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'result_err_int expects string error');
+      return tc_set_result(state, tc_type_result('int'));
+    end;
+    if name = 'result_err_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_err_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'result_err_bool expects string error');
+      return tc_set_result(state, tc_type_result('bool'));
+    end;
+    if name = 'result_err_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_err_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'result_err_str expects string error');
+      return tc_set_result(state, tc_type_result('string'));
+    end;
+    if name = 'result_is_ok_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_is_ok_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('int') then state := tc_set_error(state, 'result_is_ok_int expects result<int>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'result_is_ok_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_is_ok_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('bool') then state := tc_set_error(state, 'result_is_ok_bool expects result<bool>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'result_is_ok_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_is_ok_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('string') then state := tc_set_error(state, 'result_is_ok_str expects result<string>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'result_unwrap_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_unwrap_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('int') then state := tc_set_error(state, 'result_unwrap_int expects result<int>');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'result_unwrap_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_unwrap_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('bool') then state := tc_set_error(state, 'result_unwrap_bool expects result<bool>');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'result_unwrap_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_unwrap_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('string') then state := tc_set_error(state, 'result_unwrap_str expects result<string>');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'result_unwrap_or_int' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'result_unwrap_or_int expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('int') then state := tc_set_error(state, 'result_unwrap_or_int expects result<int>');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'result_unwrap_or_int default must be int');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'result_unwrap_or_bool' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'result_unwrap_or_bool expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('bool') then state := tc_set_error(state, 'result_unwrap_or_bool expects result<bool>');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'bool' then state := tc_set_error(state, 'result_unwrap_or_bool default must be bool');
+      return tc_set_result(state, 'bool');
+    end;
+    if name = 'result_unwrap_or_str' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'result_unwrap_or_str expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('string') then state := tc_set_error(state, 'result_unwrap_or_str expects result<string>');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'result_unwrap_or_str default must be string');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'result_unwrap_err_int' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_unwrap_err_int expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('int') then state := tc_set_error(state, 'result_unwrap_err_int expects result<int>');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'result_unwrap_err_bool' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_unwrap_err_bool expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('bool') then state := tc_set_error(state, 'result_unwrap_err_bool expects result<bool>');
+      return tc_set_result(state, 'string');
+    end;
+    if name = 'result_unwrap_err_str' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'result_unwrap_err_str expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> tc_type_result('string') then state := tc_set_error(state, 'result_unwrap_err_str expects result<string>');
+      return tc_set_result(state, 'string');
+    end;
 
     if map_has(state, tc_fn_key(name)) then
     begin
@@ -360,6 +597,11 @@ begin
         return tc_set_result(state, 'error');
       end;
       return tc_set_result(state, ret);
+    end;
+    if tc_builtin_is_known(name) then
+    begin
+      state := tc_set_error(state, concat('builtin not yet supported in selfhost expression codegen: ', name));
+      return tc_set_result(state, 'error');
     end;
     state := tc_set_error(state, concat('unknown function ', name));
     return tc_set_result(state, 'error');

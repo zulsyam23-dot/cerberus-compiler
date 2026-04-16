@@ -1,0 +1,8 @@
+program vm_runtime_instr_control;
+function vm_instr_control_handles(op: string): boolean;
+begin
+  return op = 'label' or op = 'jump' or op = 'jump_if_false' or op = 'call' or
+         op = 'ret' or op = 'ret_val' or op = 'halt' or op = 'nop';
+end;
+begin
+end.

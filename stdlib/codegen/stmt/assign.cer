@@ -1,0 +1,24 @@
+program codegen_stmt_assign_mod;
+uses codegen_util;
+function cg_stmt_is_assign(stmt: string): boolean;
+begin
+  return cg_kind(stmt) = 'SAssign';
+end;
+function cg_stmt_assign_name(stmt: string): string;
+var parts: vector of string;
+begin
+  if not cg_stmt_is_assign(stmt) then
+    return '';
+  parts := cg_split_top(cg_extract(stmt), ';');
+  return vector_get(parts, 0);
+end;
+function cg_stmt_assign_expr(stmt: string): string;
+var parts: vector of string;
+begin
+  if not cg_stmt_is_assign(stmt) then
+    return '';
+  parts := cg_split_top(cg_extract(stmt), ';');
+  return vector_get(parts, 1);
+end;
+begin
+end.

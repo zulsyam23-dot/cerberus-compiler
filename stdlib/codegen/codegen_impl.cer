@@ -1,5 +1,16 @@
 program codegen_impl;
 uses codegen_core, codegen_util, codegen_state, codegen_eval, codegen_expr, codegen_stmt, codegen_block;
-
+function codegen_impl_available(): boolean;
+begin
+  return true;
+end;
+function codegen_emit_text(ast: string): string;
+begin
+  return codegen_emit(ast);
+end;
+procedure codegen_emit_to_path(ast: string; path: string);
+begin
+  codegen_emit_to(ast, path);
+end;
 begin
 end.

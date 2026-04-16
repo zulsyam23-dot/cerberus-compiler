@@ -1,0 +1,20 @@
+program codegen_expr_call_mod;
+uses codegen_util;
+function cg_expr_call_name(expr: string): string;
+var parts: vector of string;
+begin
+  if cg_kind(expr) <> 'ECall' then
+    return '';
+  parts := cg_split_top(cg_extract(expr), ';');
+  return vector_get(parts, 0);
+end;
+function cg_expr_call_args(expr: string): vector of string;
+var parts: vector of string;
+begin
+  if cg_kind(expr) <> 'ECall' then
+    return vector_new_str();
+  parts := cg_split_top(cg_extract(expr), ';');
+  return cg_extract_list(vector_get(parts, 1));
+end;
+begin
+end.

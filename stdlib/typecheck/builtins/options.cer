@@ -1,0 +1,16 @@
+program typecheck_builtins_options_mod;
+
+function tc_builtin_is_option(name: string): boolean;
+begin
+  return name = 'option_some' or name = 'option_none' or
+         name = 'option_is_some' or name = 'option_is_none' or
+         name = 'option_unwrap' or
+         name = 'option_some_int' or name = 'option_some_bool' or name = 'option_some_str' or
+         name = 'option_none_int' or name = 'option_none_bool' or name = 'option_none_str' or
+         name = 'option_is_some_int' or name = 'option_is_some_bool' or name = 'option_is_some_str' or
+         name = 'option_unwrap_int' or name = 'option_unwrap_bool' or name = 'option_unwrap_str' or
+         name = 'option_unwrap_or_int' or name = 'option_unwrap_or_bool' or name = 'option_unwrap_or_str';
+end;
+
+begin
+end.

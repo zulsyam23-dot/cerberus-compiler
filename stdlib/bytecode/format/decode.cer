@@ -1,0 +1,45 @@
+program bytecode_format_decode;
+uses util;
+function bc_dec_split_lines(src: string): vector of string;
+var out: vector of string;
+cur: string;
+i: integer;
+n: integer;
+ch: string;
+begin
+  out := vector_new_str();
+  cur := '';
+  i := 0;
+  n := strlen(src);
+  while i < n do
+  begin
+    ch := substr(src, i, 1);
+    if ch = '\n' then
+    begin
+      out := vector_push(out, cur);
+      cur := '';
+    end
+    else
+      cur := concat(cur, ch);
+    i := i + 1;
+  end;
+  if cur <> '' or n > 0 then
+    out := vector_push(out, cur);
+  return out;
+end;
+function bc_decode_text(payload: string): string;
+var magic_ln: string;
+begin
+  magic_ln := concat(bc_format_magic(), '\n');
+  if bc_format_starts_with(payload, magic_ln) then
+    return substr(payload, strlen(magic_ln), strlen(payload) - strlen(magic_ln));
+  if payload = bc_format_magic() then
+    return '';
+  return payload;
+end;
+function bc_decode_lines(payload: string): vector of string;
+begin
+  return bc_dec_split_lines(bc_decode_text(payload));
+end;
+begin
+end.

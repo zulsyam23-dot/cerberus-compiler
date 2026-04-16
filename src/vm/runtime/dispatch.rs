@@ -4,15 +4,21 @@ use crate::error::CompileError;
 use super::{Step, Vm};
 
 pub(super) fn dispatch(vm: &mut Vm) -> Result<Step, CompileError> {
-    let code = &vm.functions[vm.current_func].code;
+    let func = vm
+        .functions
+        .get(vm.current_func)
+        .ok_or_else(|| CompileError::new_simple("invalid current function index"))?;
+    let code = &func.code;
     if vm.ip >= code.len() {
-        return Err(CompileError::new_simple("instruction pointer out of bounds"));
+        return Err(CompileError::new_simple(
+            "instruction pointer out of bounds",
+        ));
     }
     let ip = vm.ip;
     let instr = code[vm.ip].clone();
     let instr_dbg = instr.clone();
     let func_id = vm.current_func;
-    let func_name = vm.functions[func_id].name.clone();
+    let func_name = func.name.clone();
     vm.ip += 1;
 
     let res = match instr {
@@ -34,18 +40,14 @@ pub(super) fn dispatch(vm: &mut Vm) -> Result<Step, CompileError> {
         | Instr::And
         | Instr::Or
         | Instr::Not
-        | Instr::Neg => {
-            vm.exec_core(instr).map(|_| Step::Continue)
-        }
+        | Instr::Neg => vm.exec_core(instr).map(|_| Step::Continue),
         Instr::StrEq
         | Instr::StrNe
         | Instr::StrLen
         | Instr::StrConcat
         | Instr::StrSubstr
         | Instr::StrReplace
-        | Instr::StrClear => {
-            vm.exec_strings(instr).map(|_| Step::Continue)
-        }
+        | Instr::StrClear => vm.exec_strings(instr).map(|_| Step::Continue),
         Instr::AllocArray(_)
         | Instr::LoadIndex
         | Instr::StoreIndex
@@ -109,9 +111,7 @@ pub(super) fn dispatch(vm: &mut Vm) -> Result<Step, CompileError> {
         | Instr::VecClear
         | Instr::StackClear
         | Instr::MapClear
-        | Instr::SetClear => {
-            vm.exec_collections(instr).map(|_| Step::Continue)
-        }
+        | Instr::SetClear => vm.exec_collections(instr).map(|_| Step::Continue),
         Instr::ReadFile
         | Instr::WriteFile
         | Instr::ArgCount
@@ -119,17 +119,13 @@ pub(super) fn dispatch(vm: &mut Vm) -> Result<Step, CompileError> {
         | Instr::PrintLn
         | Instr::ReadInt(_)
         | Instr::ReadBool(_)
-        | Instr::ReadStr(_) => {
-            vm.exec_io(instr).map(|_| Step::Continue)
-        }
+        | Instr::ReadStr(_) => vm.exec_io(instr).map(|_| Step::Continue),
         Instr::EnvGet
         | Instr::EnvHas
         | Instr::Cwd
         | Instr::PathJoin
         | Instr::FsExists
-        | Instr::FsListDir => {
-            vm.exec_env_fs(instr).map(|_| Step::Continue)
-        }
+        | Instr::FsListDir => vm.exec_env_fs(instr).map(|_| Step::Continue),
         Instr::NowTimestamp | Instr::SleepMs | Instr::LogStr | Instr::LogInt | Instr::LogBool => {
             vm.exec_time_log(instr).map(|_| Step::Continue)
         }
@@ -271,9 +267,7 @@ pub(super) fn dispatch(vm: &mut Vm) -> Result<Step, CompileError> {
         | Instr::MetaBcEmitHalt
         | Instr::MetaBcLabel
         | Instr::MetaBcJump
-        | Instr::MetaBcJumpIfFalse => {
-            vm.exec_builder(instr).map(|_| Step::Continue)
-        }
+        | Instr::MetaBcJumpIfFalse => vm.exec_builder(instr).map(|_| Step::Continue),
         Instr::Jump(_)
         | Instr::JumpIfFalse(_)
         | Instr::Call(_)

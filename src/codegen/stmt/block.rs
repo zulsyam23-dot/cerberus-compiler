@@ -1,4 +1,4 @@
-use crate::ast::{Decl, FuncDecl, ProcDecl, VarDecl, Block};
+use crate::ast::{Block, Decl, FuncDecl, ProcDecl, VarDecl};
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
@@ -15,7 +15,11 @@ pub(super) fn emit_block(cg: &mut Codegen, block: &Block) -> Result<(), CompileE
                     cg.code.push(Instr::Store(idx));
                 }
             }
-            Decl::Proc(ProcDecl { name, params, block }) => {
+            Decl::Proc(ProcDecl {
+                name,
+                params,
+                block,
+            }) => {
                 let idx = cg.register_function(name, params.len() as u32)?;
                 cg.emit_function_body(idx, params, block)?;
             }

@@ -1,0 +1,17 @@
+program codegen_stmt_bc_emit_mod;
+function cg_starts_with(s: string; prefix: string): boolean;
+begin
+  if strlen(s) < strlen(prefix) then
+    return false;
+  return substr(s, 0, strlen(prefix)) = prefix;
+end;
+function cg_stmt_is_bc_emit_name(name: string): boolean;
+begin
+  return cg_starts_with(name, 'bc_') or cg_starts_with(name, 'emit_bcop_');
+end;
+function cg_stmt_is_builder_name(name: string): boolean;
+begin
+  return cg_starts_with(name, 'builder_');
+end;
+begin
+end.

@@ -48,7 +48,9 @@ pub fn try_emit(cg: &mut Codegen, call: &CallExpr) -> Result<bool, CompileError>
         }
         "vector_remove" => {
             if call.args.len() != 2 {
-                return Err(CompileError::new_simple("vector_remove expects 2 arguments"));
+                return Err(CompileError::new_simple(
+                    "vector_remove expects 2 arguments",
+                ));
             }
             emit_args(cg, &call.args)?;
             cg.code.push(Instr::VecRemove);

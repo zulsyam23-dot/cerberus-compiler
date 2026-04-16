@@ -41,7 +41,11 @@ impl Codegen {
         })
     }
 
-    pub(crate) fn register_function(&mut self, name: &str, param_count: u32) -> Result<u32, CompileError> {
+    pub(crate) fn register_function(
+        &mut self,
+        name: &str,
+        param_count: u32,
+    ) -> Result<u32, CompileError> {
         if let Some(&idx) = self.func_index.get(name) {
             return Ok(idx);
         }

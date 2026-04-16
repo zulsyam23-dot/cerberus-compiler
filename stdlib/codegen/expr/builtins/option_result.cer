@@ -1,0 +1,21 @@
+program codegen_expr_builtins_option_result_mod;
+function cg_builtin_is_option_result(name: string): boolean;
+begin
+  return name = 'option_some' or name = 'option_none' or name = 'option_is_some' or
+         name = 'option_is_none' or name = 'option_unwrap' or
+         name = 'option_some_int' or name = 'option_some_bool' or name = 'option_some_str' or
+         name = 'option_none_int' or name = 'option_none_bool' or name = 'option_none_str' or
+         name = 'option_is_some_int' or name = 'option_is_some_bool' or name = 'option_is_some_str' or
+         name = 'option_unwrap_int' or name = 'option_unwrap_bool' or name = 'option_unwrap_str' or
+         name = 'option_unwrap_or_int' or name = 'option_unwrap_or_bool' or name = 'option_unwrap_or_str' or
+         name = 'result_ok' or name = 'result_err' or name = 'result_is_ok' or
+         name = 'result_is_err' or name = 'result_unwrap' or
+         name = 'result_ok_int' or name = 'result_ok_bool' or name = 'result_ok_str' or
+         name = 'result_err_int' or name = 'result_err_bool' or name = 'result_err_str' or
+         name = 'result_is_ok_int' or name = 'result_is_ok_bool' or name = 'result_is_ok_str' or
+         name = 'result_unwrap_int' or name = 'result_unwrap_bool' or name = 'result_unwrap_str' or
+         name = 'result_unwrap_or_int' or name = 'result_unwrap_or_bool' or name = 'result_unwrap_or_str' or
+         name = 'result_unwrap_err_int' or name = 'result_unwrap_err_bool' or name = 'result_unwrap_err_str';
+end;
+begin
+end.

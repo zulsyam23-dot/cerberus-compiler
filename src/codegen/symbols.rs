@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::error::CompileError;
 use crate::ast::Type;
+use crate::error::CompileError;
 
 #[derive(Default, Clone)]
 pub struct Symbols {

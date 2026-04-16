@@ -1,0 +1,14 @@
+program codegen_stmt_mod2;
+uses codegen_util;
+function cg_stmt_kind_of(stmt: string): string;
+begin
+  return cg_kind(stmt);
+end;
+function cg_stmt_is_supported(stmt: string): boolean;
+var kind: string;
+begin
+  kind := cg_kind(stmt);
+  return kind = 'SReturn' or kind = 'SEmpty' or kind = 'SBlock' or kind = 'SAssign' or kind = 'SCall' or kind = 'SIf' or kind = 'SWhile';
+end;
+begin
+end.

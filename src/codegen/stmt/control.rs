@@ -2,8 +2,8 @@ use crate::ast::{IfStmt, WhileStmt};
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::super::expr::emit_expr;
 use super::super::Codegen;
+use super::super::expr::emit_expr;
 use super::emit_stmt;
 
 pub(super) fn emit_if(cg: &mut Codegen, s: &IfStmt) -> Result<(), CompileError> {

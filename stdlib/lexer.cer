@@ -1,5 +1,16 @@
 program lexer;
 uses lexer_core, lexer_tokenize;
-
+function lexer_version(): string;
+begin
+  return lex_version();
+end;
+function lexer_available(): boolean;
+begin
+  return lex_available();
+end;
+function lexer_tokenize_text(src: string): vector of string;
+begin
+  return lex_tokenize(src);
+end;
 begin
 end.

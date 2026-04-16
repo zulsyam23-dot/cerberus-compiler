@@ -1,0 +1,17 @@
+program codegen_expr_compare_mod;
+function cg_expr_is_compare_op(op: string): boolean;
+begin
+  return op = '=' or op = '<>' or op = '<' or op = '<=' or op = '>' or op = '>=';
+end;
+function cg_expr_compare_opcode(op: string): string;
+begin
+  if op = '=' then return 'eq';
+  if op = '<>' then return 'ne';
+  if op = '<' then return 'lt';
+  if op = '<=' then return 'le';
+  if op = '>' then return 'gt';
+  if op = '>=' then return 'ge';
+  return '';
+end;
+begin
+end.

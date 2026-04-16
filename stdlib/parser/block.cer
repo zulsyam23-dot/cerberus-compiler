@@ -1,0 +1,8 @@
+program parser_block_mod;
+uses parser_stmt;
+function parser_parse_block(tokens: vector of string; state: map): map;
+begin
+  return parse_block(tokens, state);
+end;
+begin
+end.

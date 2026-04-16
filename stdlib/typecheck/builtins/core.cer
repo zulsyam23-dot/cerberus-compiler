@@ -1,0 +1,28 @@
+program typecheck_builtins_core_mod;
+
+function tc_builtin_is_string(name: string): boolean;
+begin
+  return name = 'strlen' or name = 'concat' or name = 'substr' or
+         name = 'replace' or name = 'string_clear';
+end;
+
+function tc_builtin_is_runtime(name: string): boolean;
+begin
+  return name = 'arg_count' or name = 'arg' or name = 'readfile' or name = 'writefile' or
+         name = 'env_get' or name = 'env_has' or name = 'cwd' or name = 'path_join' or
+         name = 'fs_exists' or name = 'fs_listdir' or name = 'now_timestamp';
+end;
+
+function tc_builtin_is_runtime_proc(name: string): boolean;
+begin
+  return name = 'writefile' or
+         name = 'sleep_ms' or name = 'log_str' or name = 'log_int' or name = 'log_bool';
+end;
+
+function tc_builtin_is_core(name: string): boolean;
+begin
+  return tc_builtin_is_string(name) or tc_builtin_is_runtime(name) or tc_builtin_is_runtime_proc(name);
+end;
+
+begin
+end.

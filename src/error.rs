@@ -38,7 +38,10 @@ impl CompileError {
         match self.span {
             None => format!("error: {}", self.message),
             Some(span) => {
-                let line_text = source.lines().nth(span.line.saturating_sub(1)).unwrap_or("");
+                let line_text = source
+                    .lines()
+                    .nth(span.line.saturating_sub(1))
+                    .unwrap_or("");
                 let caret_len = span.len.max(1);
                 let mut caret = String::new();
                 for _ in 0..(span.col.saturating_sub(1)) {

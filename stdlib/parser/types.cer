@@ -1,0 +1,12 @@
+program parser_types_mod;
+uses parser_stmt;
+function parser_parse_type(tokens: vector of string; state: map): map;
+begin
+  return parse_type(tokens, state);
+end;
+function parser_is_builtin_type_name(t: string): boolean;
+begin
+  return t = 'int' or t = 'bool' or t = 'string' or t = 'void';
+end;
+begin
+end.

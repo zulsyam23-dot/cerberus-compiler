@@ -1,0 +1,7 @@
+program vm_runtime_instr_io;
+function vm_instr_io_handles(op: string): boolean;
+begin
+  return op = 'println' or op = 'readfile' or op = 'writefile';
+end;
+begin
+end.

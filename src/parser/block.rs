@@ -2,9 +2,9 @@ use crate::ast::{Block, Decl, FuncDecl, Param, ProcDecl, Stmt, VarDecl};
 use crate::error::CompileError;
 use crate::lexer::TokenKind;
 
+use super::Parser;
 use super::stmt::parse_statement;
 use super::types::parse_type;
-use super::Parser;
 
 pub fn parse_block(p: &mut Parser<'_>) -> Result<Block, CompileError> {
     let mut declarations = Vec::new();
@@ -16,7 +16,10 @@ pub fn parse_block(p: &mut Parser<'_>) -> Result<Block, CompileError> {
             let ty = parse_type(p)?;
             p.expect_kind(TokenKind::Semi, "';'")?;
             for name in names {
-                declarations.push(Decl::Var(VarDecl { name, ty: ty.clone() }));
+                declarations.push(Decl::Var(VarDecl {
+                    name,
+                    ty: ty.clone(),
+                }));
             }
         }
     }
@@ -75,7 +78,11 @@ fn parse_proc_decl(p: &mut Parser<'_>) -> Result<ProcDecl, CompileError> {
     p.expect_kind(TokenKind::Semi, "';'")?;
     let block = parse_block(p)?;
     p.expect_kind(TokenKind::Semi, "';'")?;
-    Ok(ProcDecl { name, params, block })
+    Ok(ProcDecl {
+        name,
+        params,
+        block,
+    })
 }
 
 fn parse_func_decl(p: &mut Parser<'_>) -> Result<FuncDecl, CompileError> {
@@ -107,7 +114,10 @@ fn parse_param_list(p: &mut Parser<'_>) -> Result<Vec<Param>, CompileError> {
             p.expect_kind(TokenKind::Colon, "':'")?;
             let ty = parse_type(p)?;
             for name in names {
-                params.push(Param { name, ty: ty.clone() });
+                params.push(Param {
+                    name,
+                    ty: ty.clone(),
+                });
             }
             if p.current_is(TokenKind::Semi) {
                 p.advance()?;

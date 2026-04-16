@@ -1,0 +1,7 @@
+program vm_runtime_builder;
+function vm_builder_available(): boolean;
+begin
+  return true;
+end;
+begin
+end.

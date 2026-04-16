@@ -1,9 +1,9 @@
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::Vm;
 use super::super::ops::pop;
 use super::super::value::Value;
+use super::Vm;
 
 impl Vm {
     pub(super) fn exec_env_fs(&mut self, instr: Instr) -> Result<(), CompileError> {
@@ -47,7 +47,8 @@ impl Vm {
                     Value::Str(s) => s,
                     _ => return Err(CompileError::new_simple("fs_exists: expected string path")),
                 };
-                self.stack.push(Value::Bool(std::path::Path::new(&path).exists()));
+                self.stack
+                    .push(Value::Bool(std::path::Path::new(&path).exists()));
             }
             Instr::FsListDir => {
                 let path = match pop(&mut self.stack)? {
@@ -55,13 +56,11 @@ impl Vm {
                     _ => return Err(CompileError::new_simple("fs_listdir: expected string path")),
                 };
                 let mut out = Vec::new();
-                let entries = std::fs::read_dir(&path).map_err(|e| {
-                    CompileError::new_simple(format!("fs_listdir failed: {e}"))
-                })?;
+                let entries = std::fs::read_dir(&path)
+                    .map_err(|e| CompileError::new_simple(format!("fs_listdir failed: {e}")))?;
                 for e in entries {
-                    let e = e.map_err(|e| {
-                        CompileError::new_simple(format!("fs_listdir failed: {e}"))
-                    })?;
+                    let e =
+                        e.map_err(|e| CompileError::new_simple(format!("fs_listdir failed: {e}")))?;
                     let name = e.file_name().to_string_lossy().to_string();
                     out.push(Value::Str(name));
                 }

@@ -1,0 +1,11 @@
+program vm_runtime_instr_builder;
+function vm_instr_builder_handles(op: string): boolean;
+begin
+  return op = 'limit_steps' or op = 'limit_stack' or op = 'limit_call' or op = 'locals' or op = 'label';
+end;
+function vm_instr_builder_is_directive(op: string): boolean;
+begin
+  return op = '@cerberus_vm' or op = '@entry' or op = '@limit_steps' or op = '@limit_stack' or op = '@limit_call';
+end;
+begin
+end.

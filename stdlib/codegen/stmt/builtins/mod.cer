@@ -1,0 +1,8 @@
+program codegen_stmt_builtins_mod2;
+uses bc_emit;
+function cg_stmt_builtin_known(name: string): boolean;
+begin
+  return cg_stmt_is_bc_emit_name(name) or cg_stmt_is_builder_name(name);
+end;
+begin
+end.

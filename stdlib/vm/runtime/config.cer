@@ -1,0 +1,15 @@
+program vm_runtime_config;
+function vm_limit_default_steps(): integer;
+begin
+  return 1000000;
+end;
+function vm_limit_default_stack(): integer;
+begin
+  return 100000;
+end;
+function vm_limit_default_call_depth(): integer;
+begin
+  return 4096;
+end;
+begin
+end.

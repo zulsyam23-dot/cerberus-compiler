@@ -1,0 +1,72 @@
+program typecheck_builtins_mod;
+
+function tc_builtin_is_core(name: string): boolean;
+begin
+  return name = 'strlen' or name = 'concat' or name = 'substr' or
+         name = 'replace' or name = 'string_clear' or
+         name = 'arg_count' or name = 'arg' or name = 'readfile' or
+         name = 'writefile' or name = 'env_get' or name = 'env_has' or
+         name = 'cwd' or name = 'path_join' or name = 'fs_exists' or
+         name = 'fs_listdir' or name = 'now_timestamp' or
+         name = 'sleep_ms' or name = 'log_str' or
+         name = 'log_int' or name = 'log_bool';
+end;
+
+function tc_builtin_is_collection(name: string): boolean;
+begin
+  return name = 'vector_new' or name = 'vector_new_int' or name = 'vector_new_bool' or
+         name = 'vector_new_str' or name = 'vector_len' or name = 'vector_get' or
+         name = 'vector_set' or name = 'vector_push' or name = 'vector_remove' or
+         name = 'vector_last' or name = 'vector_pop' or name = 'vector_clear' or
+         name = 'stack_new' or name = 'stack_len' or name = 'stack_push' or
+         name = 'stack_top' or name = 'stack_pop' or name = 'stack_clear' or
+         name = 'map_new' or name = 'map_len' or name = 'map_set' or
+         name = 'map_get' or name = 'map_has' or name = 'map_remove' or
+         name = 'map_clear' or name = 'set_new' or name = 'set_len' or
+         name = 'set_add' or name = 'set_has' or name = 'set_remove' or
+         name = 'set_clear';
+end;
+
+function tc_builtin_is_option(name: string): boolean;
+begin
+  return name = 'option_some' or name = 'option_none' or
+         name = 'option_is_some' or name = 'option_is_none' or
+         name = 'option_unwrap' or
+         name = 'option_some_int' or name = 'option_some_bool' or name = 'option_some_str' or
+         name = 'option_none_int' or name = 'option_none_bool' or name = 'option_none_str' or
+         name = 'option_is_some_int' or name = 'option_is_some_bool' or name = 'option_is_some_str' or
+         name = 'option_unwrap_int' or name = 'option_unwrap_bool' or name = 'option_unwrap_str' or
+         name = 'option_unwrap_or_int' or name = 'option_unwrap_or_bool' or name = 'option_unwrap_or_str';
+end;
+
+function tc_builtin_is_result(name: string): boolean;
+begin
+  return name = 'result_ok' or name = 'result_err' or
+         name = 'result_is_ok' or name = 'result_is_err' or
+         name = 'result_unwrap' or
+         name = 'result_ok_int' or name = 'result_ok_bool' or name = 'result_ok_str' or
+         name = 'result_err_int' or name = 'result_err_bool' or name = 'result_err_str' or
+         name = 'result_is_ok_int' or name = 'result_is_ok_bool' or name = 'result_is_ok_str' or
+         name = 'result_unwrap_int' or name = 'result_unwrap_bool' or name = 'result_unwrap_str' or
+         name = 'result_unwrap_or_int' or name = 'result_unwrap_or_bool' or name = 'result_unwrap_or_str' or
+         name = 'result_unwrap_err_int' or name = 'result_unwrap_err_bool' or name = 'result_unwrap_err_str';
+end;
+
+function tc_builtin_is_assembler(name: string): boolean;
+begin
+  return (strlen(name) >= 3 and substr(name, 0, 3) = 'bc_') or
+         (strlen(name) >= 8 and substr(name, 0, 8) = 'builder_') or
+         (strlen(name) >= 10 and substr(name, 0, 10) = 'emit_bcop_');
+end;
+
+function tc_builtin_is_known(name: string): boolean;
+begin
+  return tc_builtin_is_core(name) or
+         tc_builtin_is_collection(name) or
+         tc_builtin_is_option(name) or
+         tc_builtin_is_result(name) or
+         tc_builtin_is_assembler(name);
+end;
+
+begin
+end.

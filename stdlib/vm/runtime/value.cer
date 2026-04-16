@@ -1,0 +1,351 @@
+program vm_runtime_value;
+uses helpers;
+
+function rt_v_is_new(v: string): boolean;
+begin
+  return rt_starts_with(v, 'v1|');
+end;
+
+function rt_v_kind(v: string): string;
+var i: integer;
+j: integer;
+n: integer;
+begin
+  if not rt_v_is_new(v) then
+    return '';
+  n := strlen(v);
+  i := 3;
+  j := i;
+  while j < n and substr(v, j, 1) <> '|' do
+    j := j + 1;
+  if j >= n then
+    return '';
+  if j = i then
+    return '';
+  return substr(v, i, j - i);
+end;
+
+function rt_v_is_valid(v: string): boolean;
+var i: integer;
+j: integer;
+k: integer;
+m: integer;
+n: integer;
+len_s: string;
+len_v: integer;
+begin
+  if not rt_v_is_new(v) then
+    return false;
+  n := strlen(v);
+  i := 3;
+  j := i;
+  while j < n and substr(v, j, 1) <> '|' do
+    j := j + 1;
+  if j >= n or j = i then
+    return false;
+  k := j + 1;
+  m := k;
+  while m < n and substr(v, m, 1) <> '|' do
+    m := m + 1;
+  if m >= n then
+    return false;
+  len_s := substr(v, k, m - k);
+  if not rt_is_int_token(len_s) then
+    return false;
+  len_v := rt_parse_int(len_s);
+  if len_v < 0 then
+    return false;
+  return m + 1 + len_v = n;
+end;
+
+function rt_v_payload(v: string): string;
+var i: integer;
+j: integer;
+k: integer;
+m: integer;
+len_s: string;
+len_v: integer;
+begin
+  if not rt_v_is_valid(v) then
+    return '';
+  i := 3;
+  j := i;
+  while substr(v, j, 1) <> '|' do
+    j := j + 1;
+  k := j + 1;
+  m := k;
+  while substr(v, m, 1) <> '|' do
+    m := m + 1;
+  len_s := substr(v, k, m - k);
+  len_v := rt_parse_int(len_s);
+  return substr(v, m + 1, len_v);
+end;
+
+function rt_v_make(kind: string; payload: string): string;
+var out: string;
+begin
+  out := concat('v1|', kind);
+  out := concat(out, '|');
+  out := concat(out, rt_int_to_str(strlen(payload)));
+  out := concat(out, '|');
+  out := concat(out, payload);
+  return out;
+end;
+
+function rt_tag_int(v: integer): string;
+begin
+  return rt_v_make('i', rt_int_to_str(v));
+end;
+
+function rt_tag_bool(v: boolean): string;
+begin
+  if v then
+    return rt_v_make('b', 'true');
+  return rt_v_make('b', 'false');
+end;
+
+function rt_tag_str(v: string): string;
+begin
+  return rt_v_make('s', v);
+end;
+
+function rt_tag_vec(values: vector of string): string;
+begin
+  return rt_v_make('v', rt_pack_vec(values));
+end;
+
+function rt_tag_map(flat: vector of string): string;
+begin
+  return rt_v_make('m', rt_pack_vec(flat));
+end;
+
+function rt_is_tag(v: string; tag: string): boolean;
+var want: string;
+begin
+  if strlen(tag) = 0 then
+    return false;
+  want := substr(tag, 0, 1);
+  if rt_v_is_new(v) then
+  begin
+    if not rt_v_is_valid(v) then
+      return false;
+    return rt_v_kind(v) = want;
+  end;
+  if strlen(v) < 2 then
+    return false;
+  return substr(v, 0, 2) = tag;
+end;
+
+function rt_int(v: string): integer;
+var payload: string;
+begin
+  if rt_v_is_new(v) then
+  begin
+    if not rt_v_is_valid(v) then
+      return 0;
+    if rt_v_kind(v) <> 'i' then
+      return 0;
+    payload := rt_v_payload(v);
+    if not rt_is_int_token(payload) then
+      return 0;
+    return rt_parse_int(payload);
+  end;
+  if strlen(v) <= 2 then
+    return 0;
+  return rt_parse_int(substr(v, 2, strlen(v) - 2));
+end;
+
+function rt_bool(v: string): boolean;
+var payload: string;
+begin
+  if rt_v_is_new(v) then
+  begin
+    if not rt_v_is_valid(v) then
+      return false;
+    if rt_v_kind(v) <> 'b' then
+      return false;
+    payload := rt_v_payload(v);
+    return payload = 'true' or payload = '1';
+  end;
+  if strlen(v) <= 2 then
+    return false;
+  return substr(v, 2, strlen(v) - 2) = 'true';
+end;
+
+function rt_str(v: string): string;
+begin
+  if rt_v_is_new(v) then
+  begin
+    if not rt_v_is_valid(v) then
+      return '';
+    if rt_v_kind(v) <> 's' then
+      return '';
+    return rt_v_payload(v);
+  end;
+  if strlen(v) <= 2 then
+    return '';
+  return substr(v, 2, strlen(v) - 2);
+end;
+
+function rt_vec(v: string): vector of string;
+var payload: string;
+begin
+  if rt_v_is_new(v) then
+  begin
+    if not rt_v_is_valid(v) then
+      return vector_new_str();
+    if rt_v_kind(v) <> 'v' then
+      return vector_new_str();
+    payload := rt_v_payload(v);
+    return rt_unpack_vec(payload);
+  end;
+  return vector_new_str();
+end;
+
+function rt_map_flat(v: string): vector of string;
+var payload: string;
+begin
+  if rt_v_is_new(v) then
+  begin
+    if not rt_v_is_valid(v) then
+      return vector_new_str();
+    if rt_v_kind(v) <> 'm' then
+      return vector_new_str();
+    payload := rt_v_payload(v);
+    return rt_unpack_vec(payload);
+  end;
+  return vector_new_str();
+end;
+
+function rt_kind(v: string): string;
+begin
+  if rt_v_is_new(v) then
+  begin
+    if not rt_v_is_valid(v) then
+      return '';
+    return rt_v_kind(v);
+  end;
+  if strlen(v) < 2 then
+    return '';
+  if substr(v, 1, 1) <> ':' then
+    return '';
+  return substr(v, 0, 1);
+end;
+
+function rt_vec_accepts(values: vector of string; item: string): boolean;
+var head: string;
+begin
+  if vector_len(values) = 0 then
+    return true;
+  head := vector_get(values, 0);
+  return rt_kind(head) = rt_kind(item);
+end;
+
+function rt_map_is_shape_ok(flat: vector of string): boolean;
+begin
+  return (vector_len(flat) / 2) * 2 = vector_len(flat);
+end;
+
+function rt_map_find(flat: vector of string; key: string): integer;
+var i: integer;
+n: integer;
+begin
+  if not rt_map_is_shape_ok(flat) then
+    return -1;
+  i := 0;
+  n := vector_len(flat);
+  while i < n do
+  begin
+    if vector_get(flat, i) = key then
+      return i;
+    i := i + 2;
+  end;
+  return -1;
+end;
+
+function rt_render(v: string): string;
+begin
+  if rt_is_tag(v, 'i:') then
+    return rt_int_to_str(rt_int(v));
+  if rt_is_tag(v, 'b:') then
+  begin
+    if rt_bool(v) then
+      return 'true';
+    return 'false';
+  end;
+  if rt_is_tag(v, 's:') then
+    return rt_str(v);
+  return v;
+end;
+
+function rt_make_locals(n: integer): vector of string;
+var out: vector of string;
+i: integer;
+begin
+  out := vector_new_str();
+  i := 0;
+  while i < n do
+  begin
+    out := vector_push(out, rt_tag_int(0));
+    i := i + 1;
+  end;
+  return out;
+end;
+
+function rt_pack_vec(values: vector of string): string;
+var out: string;
+i: integer;
+n: integer;
+v: string;
+begin
+  out := '';
+  i := 0;
+  n := vector_len(values);
+  while i < n do
+  begin
+    v := vector_get(values, i);
+    out := concat(out, rt_int_to_str(strlen(v)));
+    out := concat(out, ':');
+    out := concat(out, v);
+    i := i + 1;
+  end;
+  return out;
+end;
+
+function rt_unpack_vec(blob: string): vector of string;
+var out: vector of string;
+i: integer;
+n: integer;
+j: integer;
+len_s: string;
+len_v: integer;
+item: string;
+begin
+  out := vector_new_str();
+  i := 0;
+  n := strlen(blob);
+  while i < n do
+  begin
+    j := i;
+    while j < n and substr(blob, j, 1) <> ':' do
+      j := j + 1;
+    if j >= n then
+      return vector_new_str();
+    len_s := substr(blob, i, j - i);
+    if not rt_is_int_token(len_s) then
+      return vector_new_str();
+    len_v := rt_parse_int(len_s);
+    if len_v < 0 then
+      return vector_new_str();
+    if j + 1 + len_v > n then
+      return vector_new_str();
+    item := substr(blob, j + 1, len_v);
+    out := vector_push(out, item);
+    i := j + 1 + len_v;
+  end;
+  return out;
+end;
+
+begin
+end.
+

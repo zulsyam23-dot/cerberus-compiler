@@ -1,0 +1,10 @@
+program bytecode_instr;
+function bc_is_opcode(op: string): boolean;
+begin
+  return op = 'halt' or op = 'nop' or op = 'const_int' or op = 'const_bool' or op = 'const_str' or
+         op = 'load' or op = 'store' or op = 'add' or op = 'sub' or op = 'mul' or op = 'div' or
+         op = 'jump' or op = 'jump_if_false' or op = 'call' or op = 'ret' or op = 'ret_val' or
+         op = 'println';
+end;
+begin
+end.

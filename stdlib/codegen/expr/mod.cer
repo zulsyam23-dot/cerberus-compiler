@@ -1,0 +1,16 @@
+program codegen_expr_mod2;
+uses codegen_expr, codegen_util;
+function cg_expr_emit(state: map; expr: string): map;
+begin
+  return cg_emit_expr(state, expr);
+end;
+function cg_expr_kind_of(expr: string): string;
+begin
+  return cg_kind(expr);
+end;
+function cg_expr_is_call(expr: string): boolean;
+begin
+  return cg_kind(expr) = 'ECall';
+end;
+begin
+end.

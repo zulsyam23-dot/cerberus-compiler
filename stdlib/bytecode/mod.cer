@@ -1,0 +1,20 @@
+program bytecode_mod;
+uses instr, format, disasm;
+function bytecode_available(): boolean;
+begin
+  return true;
+end;
+function bytecode_is_opcode(op: string): boolean;
+begin
+  return bc_is_opcode(op);
+end;
+function bytecode_join(lines: vector of string): string;
+begin
+  return bc_join_lines(lines);
+end;
+function bytecode_disasm(code: string): string;
+begin
+  return bc_disasm_text(code);
+end;
+begin
+end.

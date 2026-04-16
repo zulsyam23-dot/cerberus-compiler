@@ -58,7 +58,9 @@ impl BcBuilder {
         is_entry: bool,
     ) -> Result<(), CompileError> {
         if self.current.is_some() {
-            return Err(CompileError::new_simple("bc_func_begin: function already open"));
+            return Err(CompileError::new_simple(
+                "bc_func_begin: function already open",
+            ));
         }
         let idx = if let Some(existing) = self.func_index.get(&name).copied() {
             if self.defined.contains(&name) {
@@ -106,7 +108,8 @@ impl BcBuilder {
         if let Some(slot) = self.functions.get_mut(idx as usize) {
             *slot = func;
         }
-        self.defined.insert(self.functions[idx as usize].name.clone());
+        self.defined
+            .insert(self.functions[idx as usize].name.clone());
         Ok(())
     }
 
@@ -800,6 +803,11 @@ impl BcBuilder {
     }
 
     pub(super) fn emit_call_by_name(&mut self, name: String) -> Result<(), CompileError> {
+        if let Some(instr) = builtin_call_instr(&name) {
+            let cur = self.current_mut()?;
+            cur.code.push(instr);
+            return Ok(());
+        }
         let idx = if let Some(idx) = self.func_index.get(&name).copied() {
             idx
         } else {
@@ -898,7 +906,8 @@ impl BcBuilder {
             if let Some(slot) = self.functions.get_mut(idx as usize) {
                 *slot = func;
             }
-            self.defined.insert(self.functions[idx as usize].name.clone());
+            self.defined
+                .insert(self.functions[idx as usize].name.clone());
         }
         for f in &self.functions {
             if !self.defined.contains(&f.name) {
@@ -925,4 +934,43 @@ fn to_u32_index(idx: i64, ctx: &str) -> Result<u32, CompileError> {
         return Err(CompileError::new_simple(format!("{ctx}: index too large")));
     }
     Ok(idx as u32)
+}
+
+fn builtin_call_instr(name: &str) -> Option<Instr> {
+    match name {
+        "option_some_int" => Some(Instr::OptSomeInt),
+        "option_some_bool" => Some(Instr::OptSomeBool),
+        "option_some_str" => Some(Instr::OptSomeStr),
+        "option_none_int" => Some(Instr::OptNoneInt),
+        "option_none_bool" => Some(Instr::OptNoneBool),
+        "option_none_str" => Some(Instr::OptNoneStr),
+        "option_is_some_int" => Some(Instr::OptIsSomeInt),
+        "option_is_some_bool" => Some(Instr::OptIsSomeBool),
+        "option_is_some_str" => Some(Instr::OptIsSomeStr),
+        "option_unwrap_int" => Some(Instr::OptUnwrapInt),
+        "option_unwrap_bool" => Some(Instr::OptUnwrapBool),
+        "option_unwrap_str" => Some(Instr::OptUnwrapStr),
+        "option_unwrap_or_int" => Some(Instr::OptUnwrapOrInt),
+        "option_unwrap_or_bool" => Some(Instr::OptUnwrapOrBool),
+        "option_unwrap_or_str" => Some(Instr::OptUnwrapOrStr),
+        "result_ok_int" => Some(Instr::ResOkInt),
+        "result_ok_bool" => Some(Instr::ResOkBool),
+        "result_ok_str" => Some(Instr::ResOkStr),
+        "result_err_int" => Some(Instr::ResErrInt),
+        "result_err_bool" => Some(Instr::ResErrBool),
+        "result_err_str" => Some(Instr::ResErrStr),
+        "result_is_ok_int" => Some(Instr::ResIsOkInt),
+        "result_is_ok_bool" => Some(Instr::ResIsOkBool),
+        "result_is_ok_str" => Some(Instr::ResIsOkStr),
+        "result_unwrap_int" => Some(Instr::ResUnwrapInt),
+        "result_unwrap_bool" => Some(Instr::ResUnwrapBool),
+        "result_unwrap_str" => Some(Instr::ResUnwrapStr),
+        "result_unwrap_or_int" => Some(Instr::ResUnwrapOrInt),
+        "result_unwrap_or_bool" => Some(Instr::ResUnwrapOrBool),
+        "result_unwrap_or_str" => Some(Instr::ResUnwrapOrStr),
+        "result_unwrap_err_int" => Some(Instr::ResUnwrapErrInt),
+        "result_unwrap_err_bool" => Some(Instr::ResUnwrapErrBool),
+        "result_unwrap_err_str" => Some(Instr::ResUnwrapErrStr),
+        _ => None,
+    }
 }

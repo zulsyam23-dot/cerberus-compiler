@@ -3,6 +3,8 @@ uses lexer, parser, typecheck, codegen, ast;
 
 var src_path, out_path, src, ast, err: string;
 no_tc: boolean;
+arg0: string;
+arg_idx: integer;
 
 function starts_with(s: string; prefix: string): boolean;
 begin
@@ -217,6 +219,24 @@ begin
   p := path_join(base_dir, concat(name, '.cerberus'));
   if fs_exists(p) then
     return p;
+  p := path_join(path_join(base_dir, 'runtime'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base_dir, 'runtime'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base_dir, 'vm'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base_dir, 'vm'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'vm'), 'runtime'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'vm'), 'runtime'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
   p := path_join(path_join(base_dir, 'lexer'), concat(name, '.cer'));
   if fs_exists(p) then
     return p;
@@ -229,11 +249,56 @@ begin
   p := path_join(path_join(base_dir, 'typecheck'), concat(name, '.cer'));
   if fs_exists(p) then
     return p;
-  base := cwd();
+  p := path_join(path_join(base_dir, 'bytecode'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'bytecode'), 'format'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'bytecode'), 'disasm'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'lexer'), 'scanner'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'codegen'), 'expr'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'codegen'), 'stmt'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(path_join(base_dir, 'codegen'), 'expr'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(path_join(base_dir, 'codegen'), 'stmt'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base_dir, 'typecheck'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  base := c_dirname(base_dir);
   p := path_join(base, concat(name, '.cer'));
   if fs_exists(p) then
     return p;
   p := path_join(base, concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'runtime'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'runtime'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'vm'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'vm'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'vm'), 'runtime'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'vm'), 'runtime'), concat(name, '.cerberus'));
   if fs_exists(p) then
     return p;
   p := path_join(path_join(base, 'lexer'), concat(name, '.cer'));
@@ -248,6 +313,97 @@ begin
   p := path_join(path_join(base, 'typecheck'), concat(name, '.cer'));
   if fs_exists(p) then
     return p;
+  p := path_join(path_join(base, 'bytecode'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'bytecode'), 'format'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'bytecode'), 'disasm'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'lexer'), 'scanner'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'codegen'), 'expr'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'codegen'), 'stmt'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(path_join(base, 'codegen'), 'expr'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(path_join(base, 'codegen'), 'stmt'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'typecheck'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  base := cwd();
+  p := path_join(base, concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(base, concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'runtime'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'runtime'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'vm'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'vm'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'vm'), 'runtime'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'vm'), 'runtime'), concat(name, '.cerberus'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'lexer'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'parser'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'codegen'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'typecheck'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(base, 'bytecode'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'bytecode'), 'format'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'bytecode'), 'disasm'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'lexer'), 'scanner'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'codegen'), 'expr'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'codegen'), 'stmt'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(path_join(base, 'codegen'), 'expr'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(path_join(base, 'codegen'), 'stmt'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
+  p := path_join(path_join(path_join(base, 'typecheck'), 'builtins'), concat(name, '.cer'));
+  if fs_exists(p) then
+    return p;
   if env_has('CERBERUS_STDLIB') then
   begin
     p := path_join(env_get('CERBERUS_STDLIB'), concat(name, '.cer'));
@@ -256,7 +412,34 @@ begin
     p := path_join(env_get('CERBERUS_STDLIB'), concat(name, '.cerberus'));
     if fs_exists(p) then
       return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'runtime'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'runtime'), concat(name, '.cerberus'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'runtime'), 'vm'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'runtime'), 'vm'), concat(name, '.cerberus'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'runtime'), 'vm'), 'runtime'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'runtime'), 'vm'), 'runtime'), concat(name, '.cerberus'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'vm'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'vm'), 'runtime'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
     p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'lexer'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'lexer'), 'scanner'), concat(name, '.cer'));
     if fs_exists(p) then
       return p;
     p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'parser'), concat(name, '.cer'));
@@ -265,7 +448,31 @@ begin
     p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'codegen'), concat(name, '.cer'));
     if fs_exists(p) then
       return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'codegen'), 'expr'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'codegen'), 'stmt'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'codegen'), 'expr'), 'builtins'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'codegen'), 'stmt'), 'builtins'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
     p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'typecheck'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'typecheck'), 'builtins'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(env_get('CERBERUS_STDLIB'), 'bytecode'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'bytecode'), 'format'), concat(name, '.cer'));
+    if fs_exists(p) then
+      return p;
+    p := path_join(path_join(path_join(env_get('CERBERUS_STDLIB'), 'bytecode'), 'disasm'), concat(name, '.cer'));
     if fs_exists(p) then
       return p;
   end;
@@ -411,34 +618,49 @@ begin
     writeln('DEBUG: compiler entry');
   if arg_count() < 1 then
   begin
-    writeln('usage: compiler <input> [output]');
+    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
+    writeln('   or: compiler no-typecheck <input> [output]');
     return;
   end;
 
   no_tc := false;
+  arg_idx := 0;
+  arg0 := arg(0);
   if env_has('CERBERUS_DEBUG_AST') then
-    writeln(concat('DEBUG: arg0=', arg(0)));
-  if arg(0) = 'no-typecheck' then
+    writeln(concat('DEBUG: arg0=', arg0));
+  if arg0 = '--help' or arg0 = '-h' or arg0 = 'help' then
+  begin
+    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
+    writeln('   or: compiler no-typecheck <input> [output]');
+    return;
+  end;
+  if arg0 = 'no-typecheck' or arg0 = '--no-typecheck' or arg0 = '--bootstrap' then
   begin
     no_tc := true;
-    if arg_count() < 2 then
-    begin
-      writeln('usage: compiler no-typecheck <input> [output]');
-      return;
-    end;
-    src_path := arg(1);
-    if arg_count() >= 3 then
-      out_path := arg(2)
-    else
-      out_path := 'out.cerb';
+    arg_idx := 1;
   end
-  else
+  else if starts_with(arg0, '--') then
   begin
-    src_path := arg(0);
-    if arg_count() >= 2 then
-      out_path := arg(1)
-    else
-      out_path := 'out.cerb';
+    writeln(concat('ERROR: unknown option ', arg0));
+    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
+    return;
+  end;
+
+  if arg_count() <= arg_idx then
+  begin
+    writeln('usage: compiler [--no-typecheck|--bootstrap] <input> [output]');
+    writeln('   or: compiler no-typecheck <input> [output]');
+    return;
+  end;
+
+  src_path := arg(arg_idx);
+  if arg_count() > arg_idx + 1 then
+    out_path := arg(arg_idx + 1)
+  else
+    out_path := 'out.cerb';
+  if arg_count() > arg_idx + 2 then
+  begin
+    writeln(concat('WARN: extra arguments ignored, count=', p_int_to_str(arg_count() - arg_idx - 2)));
   end;
 
   if env_has('CERBERUS_DEBUG_AST') then

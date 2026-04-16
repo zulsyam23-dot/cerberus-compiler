@@ -1,0 +1,52 @@
+program lexer_token_mod;
+uses lexer_core;
+function lex_token_is_ident(tok: string): boolean;
+var i: integer;
+n: integer;
+ch: string;
+begin
+  n := strlen(tok);
+  if n = 0 then
+    return false;
+  if not lex_is_alpha(substr(tok, 0, 1)) and substr(tok, 0, 1) <> '_' then
+    return false;
+  i := 1;
+  while i < n do
+  begin
+    ch := substr(tok, i, 1);
+    if not lex_is_alnum(ch) and ch <> '_' then
+      return false;
+    i := i + 1;
+  end;
+  return true;
+end;
+function lex_token_is_int(tok: string): boolean;
+var i: integer;
+n: integer;
+begin
+  n := strlen(tok);
+  if n = 0 then
+    return false;
+  i := 0;
+  if substr(tok, 0, 1) = '-' then
+  begin
+    if n = 1 then
+      return false;
+    i := 1;
+  end;
+  while i < n do
+  begin
+    if not lex_is_digit(substr(tok, i, 1)) then
+      return false;
+    i := i + 1;
+  end;
+  return true;
+end;
+function lex_token_is_str(tok: string): boolean;
+var n: integer;
+begin
+  n := strlen(tok);
+  return n >= 2 and substr(tok, 0, 1) = '''' and substr(tok, n - 1, 1) = '''';
+end;
+begin
+end.

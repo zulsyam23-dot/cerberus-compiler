@@ -1,0 +1,7 @@
+program vm_runtime_instr_strings;
+function vm_instr_strings_handles(op: string): boolean;
+begin
+  return op = 'strlen' or op = 'concat' or op = 'substr' or op = 'replace';
+end;
+begin
+end.

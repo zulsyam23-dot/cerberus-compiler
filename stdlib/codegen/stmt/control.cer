@@ -1,0 +1,12 @@
+program codegen_stmt_control_mod;
+uses codegen_util;
+function cg_stmt_is_if(stmt: string): boolean;
+begin
+  return cg_kind(stmt) = 'SIf';
+end;
+function cg_stmt_is_while(stmt: string): boolean;
+begin
+  return cg_kind(stmt) = 'SWhile';
+end;
+begin
+end.

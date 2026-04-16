@@ -1,0 +1,17 @@
+program typecheck_builtins_results_mod;
+
+function tc_builtin_is_result(name: string): boolean;
+begin
+  return name = 'result_ok' or name = 'result_err' or
+         name = 'result_is_ok' or name = 'result_is_err' or
+         name = 'result_unwrap' or
+         name = 'result_ok_int' or name = 'result_ok_bool' or name = 'result_ok_str' or
+         name = 'result_err_int' or name = 'result_err_bool' or name = 'result_err_str' or
+         name = 'result_is_ok_int' or name = 'result_is_ok_bool' or name = 'result_is_ok_str' or
+         name = 'result_unwrap_int' or name = 'result_unwrap_bool' or name = 'result_unwrap_str' or
+         name = 'result_unwrap_or_int' or name = 'result_unwrap_or_bool' or name = 'result_unwrap_or_str' or
+         name = 'result_unwrap_err_int' or name = 'result_unwrap_err_bool' or name = 'result_unwrap_err_str';
+end;
+
+begin
+end.

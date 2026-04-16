@@ -1,0 +1,10 @@
+program vm_runtime_instr_collections;
+function vm_instr_collections_handles(op: string): boolean;
+begin
+  return op = 'vec_new' or op = 'vec_len' or op = 'vec_get' or op = 'vec_set' or
+         op = 'vec_push' or op = 'vec_remove' or op = 'vec_last' or op = 'vec_pop' or
+         op = 'map_new' or op = 'map_len' or op = 'map_set' or op = 'map_get' or
+         op = 'map_has' or op = 'map_remove';
+end;
+begin
+end.

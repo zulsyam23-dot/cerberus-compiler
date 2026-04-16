@@ -1,0 +1,4 @@
+program vm_runtime_value_alias;
+uses value;
+begin
+end.

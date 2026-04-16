@@ -1,0 +1,7 @@
+program codegen_expr_builtins_io_mod;
+function cg_builtin_is_io(name: string): boolean;
+begin
+  return name = 'readfile' or name = 'writefile' or name = 'arg_count' or name = 'arg';
+end;
+begin
+end.

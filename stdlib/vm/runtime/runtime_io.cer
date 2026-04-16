@@ -1,0 +1,4 @@
+program vm_runtime_io_alias;
+uses io;
+begin
+end.

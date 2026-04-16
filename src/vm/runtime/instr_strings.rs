@@ -1,9 +1,9 @@
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::Vm;
 use super::super::ops::{pop, pop_int};
 use super::super::value::Value;
+use super::Vm;
 
 impl Vm {
     pub(super) fn exec_strings(&mut self, instr: Instr) -> Result<(), CompileError> {

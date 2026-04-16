@@ -1,0 +1,15 @@
+program main;
+function main_entry_module(): string;
+begin
+  return 'compiler';
+end;
+function main_default_output(): string;
+begin
+  return 'out.cerb';
+end;
+function main_available(): boolean;
+begin
+  return true;
+end;
+begin
+end.

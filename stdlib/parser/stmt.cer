@@ -1,0 +1,8 @@
+program parser_stmt_mod;
+uses parser_stmt;
+function parser_parse_stmt(tokens: vector of string; state: map): map;
+begin
+  return parse_stmt(tokens, state);
+end;
+begin
+end.

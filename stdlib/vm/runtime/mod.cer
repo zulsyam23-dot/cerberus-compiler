@@ -1,0 +1,29 @@
+program vm_runtime_mod;
+uses builder, config, dispatch, helpers, instr_builder, instr_collections, instr_control, instr_core, instr_env_fs, instr_io, instr_strings, instr_time_log, validate, tests;
+function vm_runtime_available(): boolean;
+begin
+  return true;
+end;
+function vm_runtime_validate(src: string): string;
+begin
+  return rt_validate_text(src);
+end;
+function vm_runtime_run_text(src: string): string;
+begin
+  return runtime_exec_text(src);
+end;
+function vm_runtime_run_file(path: string): string;
+begin
+  return runtime_run_file(path);
+end;
+function vm_runtime_default_steps(): integer;
+begin
+  return vm_limit_default_steps();
+end;
+
+function vm_runtime_self_test(): boolean;
+begin
+  return vm_runtime_tests_run();
+end;
+begin
+end.

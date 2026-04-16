@@ -40,9 +40,7 @@ pub fn parse_type(p: &mut Parser<'_>) -> Result<Type, CompileError> {
             p.advance()?;
             let inner = parse_type(p)?;
             match inner {
-                Type::Integer | Type::Boolean | Type::String => {
-                    Ok(Type::Option(Box::new(inner)))
-                }
+                Type::Integer | Type::Boolean | Type::String => Ok(Type::Option(Box::new(inner))),
                 _ => Err(CompileError::new_simple(
                     "option only supports integer, boolean, or string",
                 )),
@@ -52,9 +50,7 @@ pub fn parse_type(p: &mut Parser<'_>) -> Result<Type, CompileError> {
             p.advance()?;
             let inner = parse_type(p)?;
             match inner {
-                Type::Integer | Type::Boolean | Type::String => {
-                    Ok(Type::Result(Box::new(inner)))
-                }
+                Type::Integer | Type::Boolean | Type::String => Ok(Type::Result(Box::new(inner))),
                 _ => Err(CompileError::new_simple(
                     "result only supports integer, boolean, or string",
                 )),
@@ -69,9 +65,7 @@ pub fn parse_type(p: &mut Parser<'_>) -> Result<Type, CompileError> {
                 Type::Integer
             };
             match inner {
-                Type::Integer | Type::Boolean | Type::String => {
-                    Ok(Type::Vector(Box::new(inner)))
-                }
+                Type::Integer | Type::Boolean | Type::String => Ok(Type::Vector(Box::new(inner))),
                 _ => Err(CompileError::new_simple(
                     "vector only supports integer, boolean, or string",
                 )),

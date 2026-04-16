@@ -1,5 +1,5 @@
-mod call;
 mod builtins;
+mod call;
 mod compare;
 
 use crate::ast::{BinaryOp, Expr, UnaryOp};

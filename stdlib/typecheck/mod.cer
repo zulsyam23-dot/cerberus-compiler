@@ -1,0 +1,16 @@
+program typecheck_mod;
+uses typecheck_impl;
+function typecheck_mod_available(): boolean;
+begin
+  return typecheck_impl_available();
+end;
+function typecheck_mod_ok(ast: string): boolean;
+begin
+  return typecheck_impl_ok(ast);
+end;
+function typecheck_mod_error(ast: string): string;
+begin
+  return typecheck_impl_error(ast);
+end;
+begin
+end.

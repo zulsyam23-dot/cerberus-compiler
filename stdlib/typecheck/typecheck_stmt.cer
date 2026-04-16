@@ -1,5 +1,32 @@
 program typecheck_stmt;
-uses typecheck_core, typecheck_util, typecheck_types, typecheck_expr;
+uses typecheck_core, typecheck_util, typecheck_types, typecheck_expr, builtins;
+
+function tc_stmt_block(state: map; block: string): map;
+var body: string;
+parts: vector of string;
+stmts: vector of string;
+i: integer;
+n: integer;
+begin
+  body := tc_extract(block);
+  parts := tc_split_top(body, ';');
+  if vector_len(parts) = 0 then
+    return state;
+  if vector_len(parts) >= 2 then
+    stmts := tc_extract_list(vector_get(parts, 1))
+  else
+    stmts := tc_extract_list(vector_get(parts, 0));
+  i := 0;
+  n := vector_len(stmts);
+  while i < n do
+  begin
+    if tc_has_error(state) then
+      return state;
+    state := tc_stmt(state, vector_get(stmts, i));
+    i := i + 1;
+  end;
+  return state;
+end;
 
 function tc_stmt(state: map; stmt: string): map;
 var kind: string;
@@ -42,7 +69,7 @@ begin
   if kind = 'SBlock' then
   begin
     body := tc_extract(stmt);
-    return tc_block(state, body);
+    return tc_stmt_block(state, body);
   end;
   if kind = 'SAssign' then
   begin
@@ -236,6 +263,8 @@ begin
         return tc_set_error(state, concat('function used as procedure: ', name));
       return state;
     end;
+    if tc_builtin_is_known(name) then
+      return tc_set_error(state, concat('builtin not yet supported in selfhost statement codegen: ', name));
     state := tc_set_error(state, concat('unknown procedure ', name));
     return state;
   end;

@@ -1,0 +1,31 @@
+program bytecode_format_encode;
+uses util;
+function bc_enc_join_lines(lines: vector of string): string;
+var out: string;
+i: integer;
+n: integer;
+begin
+  out := '';
+  i := 0;
+  n := vector_len(lines);
+  while i < n do
+  begin
+    if i > 0 then
+      out := concat(out, '\n');
+    out := concat(out, vector_get(lines, i));
+    i := i + 1;
+  end;
+  return out;
+end;
+function bc_encode_text(code: string): string;
+begin
+  if code = '' then
+    return bc_format_magic();
+  return concat(concat(bc_format_magic(), '\n'), code);
+end;
+function bc_encode_lines(lines: vector of string): string;
+begin
+  return bc_encode_text(bc_enc_join_lines(lines));
+end;
+begin
+end.

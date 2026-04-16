@@ -1,0 +1,137 @@
+program vm_runtime_validate;
+uses helpers, runtime_ops;
+
+function rt_val_error(ip: integer; msg: string): string;
+begin
+  return concat(concat('ERROR @ip=', concat(rt_int_to_str(ip), ': ')), msg);
+end;
+
+function rt_val_is_known_directive(op: string): boolean;
+begin
+  return rt_dir_is_known(op);
+end;
+
+function rt_val_is_known_opcode(op: string): boolean;
+begin
+  return rt_op_is_known(op);
+end;
+
+function rt_val_requires_arg(op: string): boolean;
+begin
+  return rt_dir_requires_arg(op) or rt_op_requires_arg(op);
+end;
+
+function rt_val_forbids_arg(op: string): boolean;
+begin
+  return rt_op_forbids_arg(op);
+end;
+
+function rt_val_requires_int_arg(op: string): boolean;
+begin
+  return rt_dir_requires_int_arg(op) or rt_op_requires_int_arg(op);
+end;
+
+function rt_val_is_jump_target_arg(op: string): boolean;
+begin
+  return op = '@entry' or rt_op_is_jump_target_arg(op);
+end;
+
+function rt_val_target_exists(arg: string; labels: map; n: integer): boolean;
+var ip: integer;
+begin
+  if rt_is_int_token(arg) then
+  begin
+    ip := rt_parse_int(arg);
+    return ip >= 0 and ip < n;
+  end;
+  return map_has(labels, arg);
+end;
+
+function rt_validate_text(src: string): string;
+var lines: vector of string;
+labels: map;
+line: string;
+op: string;
+arg: string;
+entry_arg: string;
+meta_locked: boolean;
+n: integer;
+i: integer;
+begin
+  lines := rt_split_lines(src);
+  labels := map_new();
+  entry_arg := '';
+  meta_locked := false;
+  n := vector_len(lines);
+
+  i := 0;
+  while i < n do
+  begin
+    line := vector_get(lines, i);
+    op := rt_line_op(line);
+    if op <> '' and op <> '#' then
+    begin
+      arg := rt_line_arg(line);
+
+      if rt_op_is_directive(op) then
+      begin
+        if meta_locked then
+          return rt_val_error(i, 'directive: must appear before opcodes');
+        if not rt_val_is_known_directive(op) then
+          return rt_val_error(i, concat('unknown directive: ', op));
+        if rt_val_requires_arg(op) and arg = '' then
+          return rt_val_error(i, concat(op, ': missing argument'));
+        if rt_val_requires_int_arg(op) and not rt_is_int_token(arg) then
+          return rt_val_error(i, concat(op, ': expected integer'));
+        if op = '@cerberus_vm' and rt_parse_int(arg) <> 1 then
+          return rt_val_error(i, concat('@cerberus_vm: unsupported version ', arg));
+        if op = '@entry' then
+          entry_arg := arg;
+      end
+      else
+      begin
+        meta_locked := true;
+        if not rt_val_is_known_opcode(op) then
+          return rt_val_error(i, concat('unknown opcode: ', op));
+        if rt_val_requires_arg(op) and arg = '' then
+          return rt_val_error(i, concat(op, ': missing argument'));
+        if rt_val_forbids_arg(op) and arg <> '' then
+          return rt_val_error(i, concat(op, ': unexpected argument'));
+        if rt_val_requires_int_arg(op) and not rt_is_int_token(arg) then
+          return rt_val_error(i, concat(op, ': expected integer'));
+        if op = 'const_bool' and arg <> 'true' and arg <> 'false' then
+          return rt_val_error(i, 'const_bool: expected true/false');
+        if op = 'label' then
+        begin
+          if map_has(labels, arg) then
+            return rt_val_error(i, concat('label: duplicate ', arg));
+          labels := map_set(labels, arg, rt_int_to_str(i));
+        end;
+      end;
+    end;
+    i := i + 1;
+  end;
+
+  if entry_arg <> '' and not rt_val_target_exists(entry_arg, labels, n) then
+    return rt_val_error(0, concat('@entry: target not found ', entry_arg));
+
+  i := 0;
+  while i < n do
+  begin
+    line := vector_get(lines, i);
+    op := rt_line_op(line);
+    if op <> '' and op <> '#' and rt_val_is_jump_target_arg(op) then
+    begin
+      arg := rt_line_arg(line);
+      if not rt_val_target_exists(arg, labels, n) then
+        return rt_val_error(i, concat(concat(op, ': target not found '), arg));
+    end;
+    i := i + 1;
+  end;
+
+  return '';
+end;
+
+begin
+end.
+

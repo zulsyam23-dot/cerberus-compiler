@@ -1,0 +1,66 @@
+program lexer_numbers_mod;
+uses lexer_core;
+function lex_digit_value(ch: string): integer;
+begin
+  if ch = '0' then return 0;
+  if ch = '1' then return 1;
+  if ch = '2' then return 2;
+  if ch = '3' then return 3;
+  if ch = '4' then return 4;
+  if ch = '5' then return 5;
+  if ch = '6' then return 6;
+  if ch = '7' then return 7;
+  if ch = '8' then return 8;
+  if ch = '9' then return 9;
+  return 0;
+end;
+function lex_is_int_token2(tok: string): boolean;
+var i: integer;
+n: integer;
+begin
+  n := strlen(tok);
+  if n = 0 then
+    return false;
+  i := 0;
+  if substr(tok, 0, 1) = '-' then
+  begin
+    if n = 1 then
+      return false;
+    i := 1;
+  end;
+  while i < n do
+  begin
+    if not lex_is_digit(substr(tok, i, 1)) then
+      return false;
+    i := i + 1;
+  end;
+  return true;
+end;
+function lex_parse_int_token(tok: string): integer;
+var i: integer;
+n: integer;
+out: integer;
+neg: boolean;
+begin
+  if not lex_is_int_token2(tok) then
+    return 0;
+  i := 0;
+  n := strlen(tok);
+  out := 0;
+  neg := false;
+  if substr(tok, 0, 1) = '-' then
+  begin
+    neg := true;
+    i := 1;
+  end;
+  while i < n do
+  begin
+    out := out * 10 + lex_digit_value(substr(tok, i, 1));
+    i := i + 1;
+  end;
+  if neg then
+    return 0 - out;
+  return out;
+end;
+begin
+end.

@@ -20,7 +20,11 @@ impl<'a> Parser<'a> {
         let mut lexer = Lexer::new(src);
         let current = lexer.next_token()?;
         let next = lexer.next_token()?;
-        Ok(Self { lexer, current, next })
+        Ok(Self {
+            lexer,
+            current,
+            next,
+        })
     }
 
     pub fn parse_program(&mut self) -> Result<Program, CompileError> {
@@ -86,10 +90,7 @@ impl<'a> Parser<'a> {
     }
 
     fn unexpected(&self, expected: &str) -> CompileError {
-        CompileError::new(
-            format!("expected {expected}"),
-            self.current.span,
-        )
+        CompileError::new(format!("expected {expected}"), self.current.span)
     }
 
     fn current_is(&self, kind: TokenKind) -> bool {

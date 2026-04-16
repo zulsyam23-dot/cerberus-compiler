@@ -1,0 +1,14 @@
+program lexer_keywords_mod;
+function lex_is_keyword(tok: string): boolean;
+begin
+  return tok = 'program' or tok = 'uses' or tok = 'var' or tok = 'begin' or tok = 'end' or
+         tok = 'function' or tok = 'procedure' or tok = 'if' or tok = 'then' or tok = 'else' or
+         tok = 'while' or tok = 'do' or tok = 'return' or tok = 'true' or tok = 'false' or
+         tok = 'not' or tok = 'and' or tok = 'or';
+end;
+function lex_keyword_count(): integer;
+begin
+  return 18;
+end;
+begin
+end.

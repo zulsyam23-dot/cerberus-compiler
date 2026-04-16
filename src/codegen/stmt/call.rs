@@ -2,8 +2,8 @@ use crate::ast::{CallStmt, Expr};
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::super::expr::emit_expr;
 use super::super::Codegen;
+use super::super::expr::emit_expr;
 use super::builtins;
 
 pub(super) fn emit_writeln(cg: &mut Codegen, expr: &Expr) -> Result<(), CompileError> {

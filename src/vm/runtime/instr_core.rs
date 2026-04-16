@@ -1,9 +1,11 @@
 use crate::bytecode::Instr;
 use crate::error::CompileError;
 
-use super::Vm;
-use super::super::ops::{bin_bool, bin_cmp, bin_int, pop, pop_bool, pop_int};
+use super::super::ops::{
+    bin_bool, bin_cmp, bin_int_checked, pop, pop_bool, pop_int, unary_int_checked,
+};
 use super::super::value::Value;
+use super::Vm;
 
 impl Vm {
     pub(super) fn exec_core(&mut self, instr: Instr) -> Result<(), CompileError> {
@@ -27,10 +29,20 @@ impl Vm {
                     return Err(CompileError::new_simple("invalid local index"));
                 }
             }
-            Instr::Add => bin_int(&mut self.stack, |a, b| a + b)?,
-            Instr::Sub => bin_int(&mut self.stack, |a, b| a - b)?,
-            Instr::Mul => bin_int(&mut self.stack, |a, b| a * b)?,
-            Instr::Div => bin_int(&mut self.stack, |a, b| a / b)?,
+            Instr::Add => bin_int_checked(&mut self.stack, "add", i64::checked_add)?,
+            Instr::Sub => bin_int_checked(&mut self.stack, "sub", i64::checked_sub)?,
+            Instr::Mul => bin_int_checked(&mut self.stack, "mul", i64::checked_mul)?,
+            Instr::Div => {
+                let b = pop_int(&mut self.stack)?;
+                if b == 0 {
+                    return Err(CompileError::new_simple("div: division by zero"));
+                }
+                let a = pop_int(&mut self.stack)?;
+                let out = a
+                    .checked_div(b)
+                    .ok_or_else(|| CompileError::new_simple("div: integer overflow"))?;
+                self.stack.push(Value::Int(out));
+            }
             Instr::Eq => {
                 let b = pop(&mut self.stack)?;
                 let a = pop(&mut self.stack)?;
@@ -73,10 +85,7 @@ impl Vm {
                 let v = pop_bool(&mut self.stack)?;
                 self.stack.push(Value::Bool(!v));
             }
-            Instr::Neg => {
-                let v = pop_int(&mut self.stack)?;
-                self.stack.push(Value::Int(-v));
-            }
+            Instr::Neg => unary_int_checked(&mut self.stack, "neg", i64::checked_neg)?,
             _ => unreachable!("invalid core instruction"),
         }
         Ok(())

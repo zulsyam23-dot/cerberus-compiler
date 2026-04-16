@@ -1,0 +1,7 @@
+program vm_runtime_instr_time_log;
+function vm_instr_time_log_handles(op: string): boolean;
+begin
+  return op = 'now_timestamp' or op = 'log';
+end;
+begin
+end.

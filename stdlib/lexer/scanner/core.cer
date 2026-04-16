@@ -1,0 +1,12 @@
+program lexer_scanner_core_mod;
+uses lexer_core;
+function lex_sc_is_ident_start(ch: string): boolean;
+begin
+  return lex_is_alpha(ch) or ch = '_';
+end;
+function lex_sc_is_ident_part(ch: string): boolean;
+begin
+  return lex_is_alnum(ch) or ch = '_';
+end;
+begin
+end.

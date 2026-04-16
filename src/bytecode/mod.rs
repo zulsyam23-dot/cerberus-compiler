@@ -1,7 +1,7 @@
+mod disasm;
 mod format;
 mod instr;
-mod disasm;
 
+pub use disasm::disassemble;
 pub use format::{read_bytecode, write_bytecode};
 pub use instr::{Bytecode, Function, Instr, OpCode};
-pub use disasm::disassemble;

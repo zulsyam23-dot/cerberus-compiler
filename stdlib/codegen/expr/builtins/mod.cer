@@ -1,0 +1,15 @@
+program codegen_expr_builtins_mod2;
+uses collections, io, option_result, runtime;
+
+function cg_builtin_is_string_local(name: string): boolean;
+begin
+  return name = 'strlen' or name = 'concat' or name = 'substr' or name = 'replace' or name = 'string_clear';
+end;
+
+function cg_builtin_is_known(name: string): boolean;
+begin
+  return cg_builtin_is_collection(name) or cg_builtin_is_io(name) or cg_builtin_is_option_result(name) or
+         cg_builtin_is_runtime(name) or cg_builtin_is_string_local(name);
+end;
+begin
+end.

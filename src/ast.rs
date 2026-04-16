@@ -91,10 +91,20 @@ pub enum Expr {
     Bool(bool),
     Str(String),
     Var(String),
-    Index { name: String, index: Box<Expr> },
+    Index {
+        name: String,
+        index: Box<Expr>,
+    },
     Call(CallExpr),
-    Unary { op: UnaryOp, expr: Box<Expr> },
-    Binary { op: BinaryOp, left: Box<Expr>, right: Box<Expr> },
+    Unary {
+        op: UnaryOp,
+        expr: Box<Expr>,
+    },
+    Binary {
+        op: BinaryOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -136,10 +146,7 @@ pub enum Type {
     Integer,
     Boolean,
     String,
-    Array {
-        elem: Box<Type>,
-        len: usize,
-    },
+    Array { elem: Box<Type>, len: usize },
     Option(Box<Type>),
     Result(Box<Type>),
     Vector(Box<Type>),
