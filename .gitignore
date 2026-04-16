@@ -1,5 +1,9 @@
 /target
 /target_bootstrap_fix2
+/.cerberus_target
 /*.cerb
+/*.pdb
+/tmp_*.pdb
 **/.compiler_cache.cerb
 **/.runtime_cache.cerb
+**/.toolchain_cache.cerb
