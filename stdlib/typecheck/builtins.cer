@@ -8,6 +8,9 @@ begin
          name = 'writefile' or name = 'env_get' or name = 'env_has' or
          name = 'cwd' or name = 'path_join' or name = 'fs_exists' or
          name = 'fs_listdir' or name = 'now_timestamp' or
+         name = 'c_open' or name = 'c_close' or name = 'c_symbol' or
+         name = 'c_str_ptr' or name = 'c_call_i64_0' or name = 'c_call_i64_1' or
+         name = 'c_call_i64_2' or name = 'c_call_i64_3' or name = 'c_call_i64_4' or
          name = 'sleep_ms' or name = 'log_str' or
          name = 'log_int' or name = 'log_bool';
 end;

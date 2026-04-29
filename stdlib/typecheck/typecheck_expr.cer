@@ -199,6 +199,91 @@ begin
       if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'os_exec expects string');
       return tc_set_result(state, 'int');
     end;
+    if name = 'c_open' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'c_open expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'c_open expects string');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_close' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'c_close expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_close expects int');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_symbol' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'c_symbol expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_symbol expects int handle');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'c_symbol expects string');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_str_ptr' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'c_str_ptr expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'string' then state := tc_set_error(state, 'c_str_ptr expects string');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_call_i64_0' then
+    begin
+      if vector_len(args) <> 1 then state := tc_set_error(state, 'c_call_i64_0 expects 1 arg');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_0 expects int symbol');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_call_i64_1' then
+    begin
+      if vector_len(args) <> 2 then state := tc_set_error(state, 'c_call_i64_1 expects 2 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_1 expects int symbol');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_1 expects int arg');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_call_i64_2' then
+    begin
+      if vector_len(args) <> 3 then state := tc_set_error(state, 'c_call_i64_2 expects 3 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_2 expects int symbol');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_2 expects int arg');
+      state := tc_expr_type(state, vector_get(args, 2));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_2 expects int arg');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_call_i64_3' then
+    begin
+      if vector_len(args) <> 4 then state := tc_set_error(state, 'c_call_i64_3 expects 4 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_3 expects int symbol');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_3 expects int arg');
+      state := tc_expr_type(state, vector_get(args, 2));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_3 expects int arg');
+      state := tc_expr_type(state, vector_get(args, 3));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_3 expects int arg');
+      return tc_set_result(state, 'int');
+    end;
+    if name = 'c_call_i64_4' then
+    begin
+      if vector_len(args) <> 5 then state := tc_set_error(state, 'c_call_i64_4 expects 5 args');
+      state := tc_expr_type(state, vector_get(args, 0));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_4 expects int symbol');
+      state := tc_expr_type(state, vector_get(args, 1));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_4 expects int arg');
+      state := tc_expr_type(state, vector_get(args, 2));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_4 expects int arg');
+      state := tc_expr_type(state, vector_get(args, 3));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_4 expects int arg');
+      state := tc_expr_type(state, vector_get(args, 4));
+      if tc_get_result(state) <> 'int' then state := tc_set_error(state, 'c_call_i64_4 expects int arg');
+      return tc_set_result(state, 'int');
+    end;
 
     if name = 'vector_new_int' then return tc_set_result(state, tc_type_vector('int'));
     if name = 'vector_new_bool' then return tc_set_result(state, tc_type_vector('bool'));

@@ -20,21 +20,29 @@ impl Vm {
                 Ok(Step::Continue)
             }
             Instr::Call(idx) => {
+                let callee = idx as usize;
+                let (callee_name, param_count, locals_count) = {
+                    let func = self
+                        .functions
+                        .get(callee)
+                        .ok_or_else(|| CompileError::new_simple("invalid function index"))?;
+                    (
+                        func.name.clone(),
+                        func.param_count as usize,
+                        func.locals as usize,
+                    )
+                };
+
+                if self.try_exec_c_intrinsic_call(&callee_name, param_count)? {
+                    return Ok(Step::Continue);
+                }
+
                 if self.call_stack.len() >= self.limits.max_call_depth {
                     return Err(CompileError::new_simple(format!(
                         "call depth exceeded ({})",
                         self.limits.max_call_depth
                     )));
                 }
-
-                let callee = idx as usize;
-                let (param_count, locals_count) = {
-                    let func = self
-                        .functions
-                        .get(callee)
-                        .ok_or_else(|| CompileError::new_simple("invalid function index"))?;
-                    (func.param_count as usize, func.locals as usize)
-                };
 
                 if locals_count > self.limits.max_locals_per_function {
                     return Err(CompileError::new_simple(format!(

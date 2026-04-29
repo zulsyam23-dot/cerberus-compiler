@@ -53,8 +53,8 @@ impl Codegen {
         self.functions.push(Function {
             name: name.to_string(),
             param_count,
-            locals: 0,
-            code: Vec::new(),
+            locals: param_count.max(1),
+            code: vec![crate::bytecode::Instr::Halt],
         });
         self.func_index.insert(name.to_string(), idx);
         Ok(idx)

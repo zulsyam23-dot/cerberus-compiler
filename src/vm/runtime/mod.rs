@@ -1,5 +1,7 @@
 use crate::bytecode::{Bytecode, Function};
 use crate::error::CompileError;
+use libloading::Library;
+use std::ffi::CString;
 
 use super::value::Value;
 
@@ -15,6 +17,8 @@ mod instr_env_fs;
 mod instr_io;
 mod instr_strings;
 mod instr_time_log;
+mod intrinsic_ffi;
+mod intrinsics;
 mod validate;
 
 #[cfg(test)]
@@ -33,6 +37,8 @@ pub struct Vm {
     current_func: usize,
     args: Vec<String>,
     builder: Option<BcBuilder>,
+    ffi_libraries: Vec<Option<Library>>,
+    ffi_strings: Vec<CString>,
     limits: VmLimits,
     steps_executed: u64,
 }
@@ -74,6 +80,8 @@ impl Vm {
             current_func: entry,
             args,
             builder: None,
+            ffi_libraries: Vec::new(),
+            ffi_strings: Vec::new(),
             limits: config.limits,
             steps_executed: 0,
         })

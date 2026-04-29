@@ -11,7 +11,10 @@ begin
   return name = 'arg_count' or name = 'arg' or name = 'readfile' or name = 'writefile' or
          name = 'env_get' or name = 'env_has' or name = 'cwd' or name = 'path_join' or
          name = 'fs_exists' or name = 'fs_listdir' or name = 'now_timestamp' or
-         name = 'os_exec';
+         name = 'os_exec' or
+         name = 'c_open' or name = 'c_close' or name = 'c_symbol' or
+         name = 'c_str_ptr' or name = 'c_call_i64_0' or name = 'c_call_i64_1' or
+         name = 'c_call_i64_2' or name = 'c_call_i64_3' or name = 'c_call_i64_4';
 end;
 
 function tc_builtin_is_runtime_proc(name: string): boolean;

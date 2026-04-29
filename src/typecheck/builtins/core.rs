@@ -114,6 +114,75 @@ pub(super) fn register_core(env: &mut TypeEnv) {
         },
     );
     env.funcs.insert(
+        "c_open".to_string(),
+        FuncSig {
+            params: vec![Type::String],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_close".to_string(),
+        FuncSig {
+            params: vec![Type::Integer],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_symbol".to_string(),
+        FuncSig {
+            params: vec![Type::Integer, Type::String],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_str_ptr".to_string(),
+        FuncSig {
+            params: vec![Type::String],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_call_i64_0".to_string(),
+        FuncSig {
+            params: vec![Type::Integer],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_call_i64_1".to_string(),
+        FuncSig {
+            params: vec![Type::Integer, Type::Integer],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_call_i64_2".to_string(),
+        FuncSig {
+            params: vec![Type::Integer, Type::Integer, Type::Integer],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_call_i64_3".to_string(),
+        FuncSig {
+            params: vec![Type::Integer, Type::Integer, Type::Integer, Type::Integer],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
+        "c_call_i64_4".to_string(),
+        FuncSig {
+            params: vec![
+                Type::Integer,
+                Type::Integer,
+                Type::Integer,
+                Type::Integer,
+                Type::Integer,
+            ],
+            ret: Type::Integer,
+        },
+    );
+    env.funcs.insert(
         "now_timestamp".to_string(),
         FuncSig {
             params: Vec::new(),

@@ -2,6 +2,8 @@ use crate::bytecode::{Bytecode, Function, Instr};
 use crate::error::CompileError;
 use std::collections::{HashMap, HashSet};
 
+use super::intrinsics;
+
 pub(super) struct BcBuilder {
     name: String,
     functions: Vec<Function>,
@@ -808,6 +810,35 @@ impl BcBuilder {
             cur.code.push(instr);
             return Ok(());
         }
+        if let Some(arity) = intrinsics::c_intrinsic_arity(&name) {
+            let idx = if let Some(existing) = self.func_index.get(&name).copied() {
+                let existing_fn = self
+                    .functions
+                    .get(existing as usize)
+                    .ok_or_else(|| CompileError::new_simple("invalid function index"))?;
+                if existing_fn.param_count != arity {
+                    return Err(CompileError::new_simple(format!(
+                        "intrinsic '{}' called with inconsistent arity",
+                        name
+                    )));
+                }
+                existing
+            } else {
+                let idx = self.functions.len() as u32;
+                self.func_index.insert(name.clone(), idx);
+                self.functions.push(Function {
+                    name: name.clone(),
+                    param_count: arity,
+                    locals: arity.max(1),
+                    code: vec![Instr::Halt],
+                });
+                self.defined.insert(name.clone());
+                idx
+            };
+            let cur = self.current_mut()?;
+            cur.code.push(Instr::Call(idx));
+            return Ok(());
+        }
         let idx = if let Some(idx) = self.func_index.get(&name).copied() {
             idx
         } else {
@@ -910,7 +941,7 @@ impl BcBuilder {
                 .insert(self.functions[idx as usize].name.clone());
         }
         for f in &self.functions {
-            if !self.defined.contains(&f.name) {
+            if !self.defined.contains(&f.name) && !intrinsics::is_c_intrinsic(&f.name) {
                 return Err(CompileError::new_simple(format!(
                     "finish: unknown function '{}'",
                     f.name
